@@ -25,7 +25,8 @@ export function ResultsPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [geojsonData, setGeojsonData] =
     useState<GeoJSONFeatureCollection | null>(null);
-  const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
+  const [selectedParcelId, setSelectedParcelId] =
+    useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,10 +38,6 @@ export function ResultsPage() {
         setLoading(true);
         setError(null);
 
-        /*
-         * Mock mode currently returns ANL-001 from submitAnalysis().
-         * Later, this ID should come from the analysis store/router.
-         */
         const analysisId = 'ANL-001';
 
         const [analysisResult, parcels] = await Promise.all([
@@ -77,7 +74,8 @@ export function ResultsPage() {
     };
   }, [region]);
 
-  const recommendations: Recommendation[] = result?.recommendations ?? [];
+  const recommendations: Recommendation[] =
+    result?.recommendations ?? [];
 
   const handleParcelClick = (parcelId: string) => {
     setSelectedParcelId(parcelId);
@@ -119,14 +117,18 @@ export function ResultsPage() {
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4">
-          <p className="text-xs text-gray-500 uppercase">Region</p>
+          <p className="text-xs text-gray-500 uppercase">
+            Region
+          </p>
           <p className="font-semibold capitalize">
             {result.region || region || '—'}
           </p>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs text-gray-500 uppercase">Facility</p>
+          <p className="text-xs text-gray-500 uppercase">
+            Facility
+          </p>
           <p className="font-semibold capitalize">
             {result.facility || facility || '—'}
           </p>
@@ -137,14 +139,16 @@ export function ResultsPage() {
             Parcels Analyzed
           </p>
           <p className="font-semibold">
-            {(result?.parcels_analyzed ?? 0).toLocaleString()}
+            {(result.parcels_analyzed ?? 0).toLocaleString()}
           </p>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs text-gray-500 uppercase">Suitable</p>
+          <p className="text-xs text-gray-500 uppercase">
+            Suitable
+          </p>
           <p className="font-semibold text-blue-600">
-            {(result?.suitable_parcels ?? 0).toLocaleString()}
+            {(result.suitable_parcels ?? 0).toLocaleString()}
           </p>
         </Card>
 
@@ -159,8 +163,10 @@ export function ResultsPage() {
       </div>
 
       <Card className="overflow-hidden">
+
         {/* Tabs */}
         <div className="border-b px-4 flex space-x-6">
+
           <button
             className={`py-3 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'map'
@@ -182,13 +188,20 @@ export function ResultsPage() {
           >
             Table View
           </button>
+
         </div>
 
         <div className="p-4">
+
+          {/* ================= MAP VIEW ================= */}
+
           {activeTab === 'map' ? (
+
             <div className="flex flex-col md:flex-row gap-4 h-[600px]">
-              {/* REAL MAP */}
+
+              {/* Map */}
               <div className="flex-1 min-h-[400px] border border-gray-200 rounded-md overflow-hidden">
+
                 {geojsonData ? (
                   <MapContainer
                     geojsonData={geojsonData}
@@ -203,15 +216,18 @@ export function ResultsPage() {
                     </span>
                   </div>
                 )}
+
               </div>
 
               {/* Recommendations */}
               <div className="w-full md:w-80 overflow-y-auto space-y-3">
+
                 <h3 className="font-semibold text-gray-900 mb-2 sticky top-0 bg-white py-1">
                   Top Recommendations
                 </h3>
 
                 {recommendations.map((r, index) => (
+
                   <Card
                     key={r.parcel_id}
                     className={`p-4 cursor-pointer transition-colors ${
@@ -223,8 +239,11 @@ export function ResultsPage() {
                       setSelectedParcelId(r.parcel_id);
                     }}
                   >
+
                     <div className="flex justify-between items-start mb-2">
+
                       <div className="flex items-center space-x-2">
+
                         <span className="text-xs font-bold text-gray-400">
                           #{index + 1}
                         </span>
@@ -239,6 +258,7 @@ export function ResultsPage() {
                         >
                           {r.parcel_id}
                         </button>
+
                       </div>
 
                       <Badge
@@ -250,9 +270,11 @@ export function ResultsPage() {
                       >
                         {r.recommendation.replace('_', ' ')}
                       </Badge>
+
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
+
                       <span className="text-gray-600">
                         Suitability Score
                       </span>
@@ -260,9 +282,11 @@ export function ResultsPage() {
                       <span className="font-bold text-gray-900">
                         {r.overall_score}
                       </span>
+
                     </div>
 
                     <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+
                       <div
                         className="bg-blue-600 h-1.5 rounded-full"
                         style={{
@@ -272,6 +296,7 @@ export function ResultsPage() {
                           )}%`,
                         }}
                       />
+
                     </div>
 
                     <div className="mt-3 text-xs text-gray-500">
@@ -283,16 +308,27 @@ export function ResultsPage() {
                         {r.reasons[0]}
                       </p>
                     )}
+
                   </Card>
+
                 ))}
+
               </div>
+
             </div>
+
           ) : (
-            /* TABLE */
+
+            /* ================= TABLE VIEW ================= */
+
             <div className="overflow-x-auto">
+
               <table className="min-w-full divide-y divide-gray-200">
+
                 <thead className="bg-gray-50">
+
                   <tr>
+
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Rank
                     </th>
@@ -320,11 +356,15 @@ export function ResultsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Recommendation
                     </th>
+
                   </tr>
+
                 </thead>
 
                 <tbody className="bg-white divide-y divide-gray-200">
+
                   {recommendations.map((r, index) => (
+
                     <tr
                       key={r.parcel_id}
                       className={`hover:bg-gray-50 cursor-pointer ${
@@ -332,10 +372,16 @@ export function ResultsPage() {
                           ? 'bg-blue-50'
                           : ''
                       }`}
+
+                      // ✅ FIX:
+                      // Clicking anywhere on the table row now
+                      // opens the parcel details page.
                       onClick={() => {
                         setSelectedParcelId(r.parcel_id);
+                        navigate(`/parcel/${r.parcel_id}`);
                       }}
                     >
+
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         #{index + 1}
                       </td>
@@ -361,6 +407,7 @@ export function ResultsPage() {
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap">
+
                         <Badge
                           variant={
                             r.recommendation === 'highly_suitable'
@@ -370,15 +417,25 @@ export function ResultsPage() {
                         >
                           {r.recommendation.replace('_', ' ')}
                         </Badge>
+
                       </td>
+
                     </tr>
+
                   ))}
+
                 </tbody>
+
               </table>
+
             </div>
+
           )}
+
         </div>
+
       </Card>
+
     </div>
   );
 }
