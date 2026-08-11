@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import { OverviewPage } from './pages/OverviewPage';
+import { ExplorerPage } from './pages/ExplorerPage';
 import { AnalysisPage } from './pages/AnalysisPage';
 import { ResultsPage } from './pages/ResultsPage';
 import { ParcelPage } from './pages/ParcelPage';
@@ -22,7 +23,7 @@ export default function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="data-health" element={<DataHealthPage />} />
         {/* Land Explorer could be ResultsPage with map view, or we can route it there for now */}
-        <Route path="explorer" element={<ResultsPage />} />
+        <Route path="explorer" element={<ExplorerPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
