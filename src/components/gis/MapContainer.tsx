@@ -1,7 +1,11 @@
 import { useRef, useEffect, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useMapStore } from '../../stores';
 import type { GeoJSONFeatureCollection } from '../../types';
+
+maplibregl.setWorkerUrl(maplibreWorker);
 
 const MAP_STYLE_URL =
   import.meta.env.VITE_MAP_STYLE_URL ||
