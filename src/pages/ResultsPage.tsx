@@ -372,13 +372,9 @@ export function ResultsPage() {
                           ? 'bg-blue-50'
                           : ''
                       }`}
-
-                      // ✅ FIX:
-                      // Clicking anywhere on the table row now
-                      // opens the parcel details page.
                       onClick={() => {
                         setSelectedParcelId(r.parcel_id);
-                        navigate(`/parcel/${r.parcel_id}`);
+                        setActiveTab('map');
                       }}
                     >
 
@@ -386,8 +382,20 @@ export function ResultsPage() {
                         #{index + 1}
                       </td>
 
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                        {r.parcel_id}
+                      {/* Parcel ID */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/parcel/${r.parcel_id}`);
+                          }}
+                        >
+                          {r.parcel_id}
+                        </button>
+
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">

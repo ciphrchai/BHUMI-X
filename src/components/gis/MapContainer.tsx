@@ -33,10 +33,15 @@ function MapContainerInner({
   const { viewState, setViewState } = useMapStore();
 
   const handleParcelClick = useCallback(
-    (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+    (
+      e: maplibregl.MapMouseEvent & {
+        features?: maplibregl.MapGeoJSONFeature[];
+      }
+    ) => {
       if (e.features && e.features.length > 0) {
         const feature = e.features[0];
         const parcelId = feature.properties?.parcel_id as string;
+
         if (parcelId && onParcelClick) {
           onParcelClick(parcelId);
         }
@@ -60,11 +65,21 @@ function MapContainerInner({
       interactive,
     });
 
-    m.addControl(new maplibregl.NavigationControl(), 'top-right');
-    m.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+    m.addControl(
+      new maplibregl.NavigationControl(),
+      'top-right'
+    );
+
+    m.addControl(
+      new maplibregl.ScaleControl({
+        unit: 'metric',
+      }),
+      'bottom-left'
+    );
 
     m.on('moveend', () => {
       const center = m.getCenter();
+
       setViewState({
         center: [center.lng, center.lat],
         zoom: m.getZoom(),
@@ -77,123 +92,247 @@ function MapContainerInner({
       m.remove();
       map.current = null;
     };
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Add/update any source and layers
+  // Add/update parcel data and layers
   useEffect(() => {
     const m = map.current;
+
     if (!m || !geojsonData) return;
 
     const addData = () => {
-      // Remove existing if present
-      if (m.getLayer('parcels-fill')) m.removeLayer('parcels-fill');
-      if (m.getLayer('parcels-outline')) m.removeLayer('parcels-outline');
-      if (m.getLayer('parcels-highlight')) m.removeLayer('parcels-highlight');
-      if (m.getSource('parcels')) m.removeSource('parcels');
+      // Remove existing layers
+      if (m.getLayer('parcels-selected-fill')) {
+        m.removeLayer('parcels-selected-fill');
+      }
 
+      if (m.getLayer('parcels-highlight')) {
+        m.removeLayer('parcels-highlight');
+      }
+
+      if (m.getLayer('parcels-fill')) {
+        m.removeLayer('parcels-fill');
+      }
+
+      if (m.getLayer('parcels-outline')) {
+        m.removeLayer('parcels-outline');
+      }
+
+      // Remove existing source
+      if (m.getSource('parcels')) {
+        m.removeSource('parcels');
+      }
+
+      // Add parcel source
       m.addSource('parcels', {
         type: 'geojson',
         data: geojsonData as unknown as any,
       });
 
-      // Fill layer colored by suitability
+      // --------------------------------------------------
+      // NORMAL PARCEL FILL
+      // --------------------------------------------------
+
       m.addLayer({
         id: 'parcels-fill',
         type: 'fill',
         source: 'parcels',
+
         paint: {
           'fill-color': [
             'match',
             ['get', 'suitability_status'],
-            'highly_suitable', '#16a34a',
-            'suitable', '#22c55e',
-            'moderate', '#eab308',
-            'unsuitable', '#f97316',
-            'restricted', '#dc2626',
-            '#94a3b8', // default gray
+
+            'highly_suitable',
+            '#16a34a',
+
+            'suitable',
+            '#22c55e',
+
+            'moderate',
+            '#eab308',
+
+            'unsuitable',
+            '#f97316',
+
+            'restricted',
+            '#dc2626',
+
+            '#94a3b8',
           ],
+
           'fill-opacity': 0.35,
         },
       });
 
-      // Outline layer
+      // --------------------------------------------------
+      // NORMAL PARCEL OUTLINE
+      // --------------------------------------------------
+
       m.addLayer({
         id: 'parcels-outline',
         type: 'line',
         source: 'parcels',
+
         paint: {
           'line-color': [
             'match',
             ['get', 'suitability_status'],
-            'highly_suitable', '#16a34a',
-            'suitable', '#22c55e',
-            'moderate', '#eab308',
-            'unsuitable', '#f97316',
-            'restricted', '#dc2626',
+
+            'highly_suitable',
+            '#16a34a',
+
+            'suitable',
+            '#22c55e',
+
+            'moderate',
+            '#eab308',
+
+            'unsuitable',
+            '#f97316',
+
+            'restricted',
+            '#dc2626',
+
             '#64748b',
           ],
+
           'line-width': 1.5,
         },
       });
 
-      // Highlight layer for selected parcel
+      // --------------------------------------------------
+      // SELECTED PARCEL FILL
+      // --------------------------------------------------
+      // This creates the blue translucent highlight
+      // inside the selected parcel.
+      // --------------------------------------------------
+
+      m.addLayer({
+        id: 'parcels-selected-fill',
+        type: 'fill',
+        source: 'parcels',
+
+        paint: {
+          'fill-color': '#2563eb',
+          'fill-opacity': 0.18,
+        },
+
+        filter: [
+          '==',
+          'parcel_id',
+          '',
+        ],
+      });
+
+      // --------------------------------------------------
+      // SELECTED PARCEL BORDER
+      // --------------------------------------------------
+      // Thicker blue border makes the selected parcel
+      // immediately visible.
+      // --------------------------------------------------
+
       m.addLayer({
         id: 'parcels-highlight',
         type: 'line',
         source: 'parcels',
+
         paint: {
           'line-color': '#2563eb',
-          'line-width': 3,
+          'line-width': 4,
+          'line-opacity': 1,
         },
-        filter: ['==', 'parcel_id', ''],
+
+        filter: [
+          '==',
+          'parcel_id',
+          '',
+        ],
       });
 
-      // Cursor and click handlers
+      // --------------------------------------------------
+      // CURSOR
+      // --------------------------------------------------
+
       m.on('mouseenter', 'parcels-fill', () => {
         m.getCanvas().style.cursor = 'pointer';
       });
+
       m.on('mouseleave', 'parcels-fill', () => {
         m.getCanvas().style.cursor = '';
       });
-      m.on('click', 'parcels-fill', handleParcelClick);
+
+      // --------------------------------------------------
+      // CLICK
+      // --------------------------------------------------
+
+      m.on(
+        'click',
+        'parcels-fill',
+        handleParcelClick
+      );
     };
 
     if (m.isStyleLoaded()) {
       addData();
     } else {
-      m.on('load', addData);
+      m.once('load', addData);
     }
   }, [geojsonData, handleParcelClick]);
 
-  // Update highlight filter when selected parcel changes
+  // --------------------------------------------------
+  // UPDATE SELECTED PARCEL
+  // --------------------------------------------------
+
   useEffect(() => {
     const m = map.current;
+
     if (!m) return;
 
     const updateHighlight = () => {
+      const filter: maplibregl.ExpressionSpecification = [
+        '==',
+        'parcel_id',
+        highlightedParcelId || '',
+      ];
+
+      if (m.getLayer('parcels-selected-fill')) {
+        m.setFilter(
+          'parcels-selected-fill',
+          filter
+        );
+      }
+
       if (m.getLayer('parcels-highlight')) {
-        m.setFilter('parcels-highlight', [
-          '==',
-          'parcel_id',
-          highlightedParcelId || '',
-        ]);
+        m.setFilter(
+          'parcels-highlight',
+          filter
+        );
       }
     };
 
     if (m.isStyleLoaded()) {
       updateHighlight();
     } else {
-      m.on('load', updateHighlight);
+      m.once('load', updateHighlight);
     }
   }, [highlightedParcelId]);
 
-  // Fit bounds when requested
+  // --------------------------------------------------
+  // FIT BOUNDS
+  // --------------------------------------------------
+
   useEffect(() => {
     const m = map.current;
+
     if (!m || !fitBounds) return;
 
-    m.fitBounds(fitBounds, { padding: 40, duration: 800 });
+    m.fitBounds(fitBounds, {
+      padding: 40,
+      duration: 800,
+    });
   }, [fitBounds]);
 
   return (
@@ -207,4 +346,5 @@ function MapContainerInner({
 }
 
 const MapContainer = memo(MapContainerInner);
+
 export default MapContainer;
