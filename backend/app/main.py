@@ -1,0 +1,59 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.routers import (
+    parcels,
+    geojson,
+    analysis,
+    data_health,
+    reports,
+    simulation,
+)
+
+
+app = FastAPI(
+    title="BHUMI-X API",
+    description="Government Land Intelligence & Decision Engine",
+    version="1.0.0",
+)
+
+
+# Allow the React frontend to communicate with FastAPI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# API Routers
+app.include_router(geojson.router)
+app.include_router(parcels.router)
+app.include_router(analysis.router)
+app.include_router(data_health.router)
+app.include_router(reports.router)
+app.include_router(simulation.router)
+
+@app.get("/")
+def root():
+    return {
+        "message": "BHUMI-X Backend is running",
+        "status": "online",
+    }
+
+
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "BHUMI-X API",
+    }
