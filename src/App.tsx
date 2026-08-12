@@ -9,6 +9,7 @@ import { ParcelPage } from './pages/ParcelPage';
 import { SimulatorPage } from './pages/SimulatorPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { DataHealthPage } from './pages/DataHealthPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -62,6 +63,12 @@ export default function App() {
         <Route
           path="data-health"
           element={<DataHealthPage />}
+        />
+
+        {/* Settings */}
+        <Route
+          path="settings"
+          element={<SettingsPage />}
         />
 
         <Route

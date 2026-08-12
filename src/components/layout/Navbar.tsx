@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { User, Menu, X, LogOut, Settings, ChevronDown } from 'lucide-react';
+import {
+  User,
+  Menu,
+  X,
+  LogOut,
+  Settings,
+  ChevronDown,
+} from 'lucide-react';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
   const [isLoggedIn, setIsLoggedIn] = useState(
     localStorage.getItem('bhumiX_logged_in') === 'true'
   );
@@ -42,6 +50,11 @@ export default function Navbar() {
     setProfileOpen(false);
 
     navigate('/login');
+  };
+
+  const handleSettings = () => {
+    setProfileOpen(false);
+    navigate('/settings');
   };
 
   return (
@@ -211,19 +224,21 @@ export default function Navbar() {
                 {/* Actions */}
                 <div className="border-t border-gray-200 py-1">
 
+                  {/* Settings */}
                   <button
                     type="button"
-                    onClick={() => setProfileOpen(false)}
-                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-600 hover:bg-gray-50"
+                    onClick={handleSettings}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     <Settings className="w-4 h-4" />
                     Settings
                   </button>
 
+                  {/* Sign Out */}
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-red-600 hover:bg-red-50"
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                     Sign Out
@@ -236,6 +251,8 @@ export default function Navbar() {
 
           </div>
         ) : (
+
+          /* Login */
           <button
             type="button"
             onClick={() => navigate('/login')}
@@ -245,6 +262,7 @@ export default function Navbar() {
           >
             <User className="w-5 h-5" />
           </button>
+
         )}
 
         {/* Mobile Menu */}
@@ -260,6 +278,7 @@ export default function Navbar() {
             <Menu className="w-5 h-5" />
           )}
         </button>
+
       </div>
 
       {/* Mobile Navigation */}
@@ -297,17 +316,31 @@ export default function Navbar() {
           )}
 
           {isLoggedIn && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              Sign Out
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate('/settings');
+                }}
+                className="w-full text-left px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Settings
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Sign Out
+              </button>
+            </>
           )}
 
         </div>
       )}
+
     </nav>
   );
 }
