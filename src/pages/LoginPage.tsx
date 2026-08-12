@@ -17,13 +17,19 @@ export function LoginPage() {
 
     setError('');
 
-    // Prototype authentication
+    const validUsername = 'admin';
+    const validPassword = 'SiH195';
+
     if (!username || !password) {
       setError('Please enter your username and password.');
       return;
     }
 
-    // Prototype login — real authentication will be connected to backend later
+    if (username !== validUsername || password !== validPassword) {
+      setError('Invalid username or password.');
+      return;
+    }
+
     localStorage.setItem('bhumiX_logged_in', 'true');
     localStorage.setItem('bhumiX_user', username);
 
@@ -37,6 +43,7 @@ export function LoginPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
+
           <div className="flex justify-center mb-4">
             <svg
               viewBox="0 0 28 28"
@@ -73,11 +80,14 @@ export function LoginPage() {
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 mt-1">
             Government Land Intelligence
           </p>
+
         </div>
 
+        {/* Login Card */}
         <Card className="p-8">
 
           <div className="mb-6">
+
             <h2 className="text-xl font-semibold text-gray-900">
               Sign in
             </h2>
@@ -85,17 +95,20 @@ export function LoginPage() {
             <p className="text-sm text-gray-500 mt-1">
               Access the BHUMI-X planning platform.
             </p>
+
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
 
             {/* Username */}
             <div>
+
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Username or Email
               </label>
 
               <div className="relative">
+
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
                 <input
@@ -105,16 +118,20 @@ export function LoginPage() {
                   placeholder="Enter your username"
                   className="w-full h-11 pl-10 pr-3 border border-gray-300 rounded-md text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+
               </div>
+
             </div>
 
             {/* Password */}
             <div>
+
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Password
               </label>
 
               <div className="relative">
+
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
                 <input
@@ -129,6 +146,11 @@ export function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label={
+                    showPassword
+                      ? 'Hide password'
+                      : 'Show password'
+                  }
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -136,7 +158,9 @@ export function LoginPage() {
                     <Eye className="w-4 h-4" />
                   )}
                 </button>
+
               </div>
+
             </div>
 
             {/* Error */}
@@ -146,7 +170,7 @@ export function LoginPage() {
               </div>
             )}
 
-            {/* Login */}
+            {/* Login Button */}
             <Button
               type="submit"
               variant="primary"
@@ -157,14 +181,18 @@ export function LoginPage() {
 
           </form>
 
+          {/* Prototype Authentication */}
           <div className="mt-6 pt-5 border-t border-gray-200 text-center">
+
             <p className="text-xs text-gray-400">
               Prototype authentication
             </p>
+
           </div>
 
         </Card>
 
+        {/* Continue Without Login */}
         <button
           type="button"
           onClick={() => navigate('/overview')}
@@ -174,6 +202,7 @@ export function LoginPage() {
         </button>
 
       </div>
+
     </div>
   );
 }
