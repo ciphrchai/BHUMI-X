@@ -10,13 +10,14 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 
 import PageHeader from '../components/layout/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
+
 import * as simulationService from '../services';
 
 interface SimulationMetric {
@@ -35,101 +36,126 @@ interface SimulationResults {
 export function SimulatorPage() {
   const [searchParams] = useSearchParams();
 
-  const initialParcel = searchParams.get('parcel') || 'A102';
+  const initialParcel = searchParams.get('parcel') || '';
 
   const [parcelId, setParcelId] = useState(initialParcel);
   const [facility, setFacility] = useState('school');
   const [radius, setRadius] = useState(3);
 
   const [isSimulating, setIsSimulating] = useState(false);
-  const [results, setResults] = useState<SimulationResults | null>(null);
+  const [results, setResults] =
+    useState<SimulationResults | null>(null);
 
-  const getFallbackResults = (): SimulationResults => ({
-    additional_population_served: 13300,
+  const [error, setError] = useState<string | null>(null);
 
-    metrics: [
-      {
-        label: 'Population Served',
-        before: 18400,
-        after: 31700,
-        unit: 'people',
-        improvement_pct: 72.3,
-      },
-      {
-        label: 'Service Accessibility',
-        before: 61,
-        after: 84,
-        unit: '%',
-        improvement_pct: 37.7,
-      },
-      {
-        label: 'Average Travel Distance',
-        before: 4.2,
-        after: 2.1,
-        unit: 'km',
-        improvement_pct: 50,
-      },
-    ],
-  });
+  // ============================================================
+  // RUN REAL SIMULATION
+  // ============================================================
 
   const handleSimulate = async () => {
+    if (!parcelId.trim()) {
+      setError('Please enter a parcel ID.');
+      setResults(null);
+      return;
+    }
+
+    if (!radius || radius <= 0) {
+      setError('Service radius must be greater than 0.');
+      setResults(null);
+      return;
+    }
+
     setIsSimulating(true);
+    setError(null);
+    setResults(null);
 
     try {
-      const data = await simulationService.simulateImpact(
-        parcelId,
-        facility as any,
-        radius
+      const data =
+        await simulationService.simulateImpact(
+          parcelId.trim(),
+          facility as any,
+          radius
+        );
+
+      // --------------------------------------------------------
+      // Validate backend response
+      // --------------------------------------------------------
+
+      if (
+        !data ||
+        !Array.isArray(data.metrics)
+      ) {
+        throw new Error(
+          'Backend returned an invalid simulation response.'
+        );
+      }
+
+      setResults({
+        additional_population_served:
+          Number(
+            data.additional_population_served ?? 0
+          ),
+
+        metrics: data.metrics.map(
+          (metric: any) => ({
+            label: String(metric.label ?? ''),
+            before: Number(metric.before ?? 0),
+            after: Number(metric.after ?? 0),
+            unit: String(metric.unit ?? ''),
+            improvement_pct: Number(
+              metric.improvement_pct ?? 0
+            ),
+          })
+        ),
+      });
+    } catch (err) {
+      console.error(
+        'BHUMI-X simulation failed:',
+        err
       );
 
-      /*
-       * The backend/mock service returns:
-       *
-       * {
-       *   parcel_id,
-       *   facility,
-       *   population_radius,
-       *   metrics: [...],
-       *   additional_population_served
-       * }
-       *
-       * Use it directly when available.
-       */
-      if (data && Array.isArray(data.metrics)) {
-        setResults({
-          additional_population_served:
-            data.additional_population_served ?? 0,
-          metrics: data.metrics,
-        });
-      } else {
-        setResults(getFallbackResults());
-      }
-    } catch (error) {
-      console.error('Simulation failed:', error);
+      setResults(null);
 
-      // Keep the prototype usable even if the API is unavailable.
-      setResults(getFallbackResults());
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Simulation failed. Make sure the BHUMI-X backend is running and the simulation API is available.'
+      );
     } finally {
       setIsSimulating(false);
     }
   };
 
+  // ============================================================
+  // FIND METRICS
+  // ============================================================
+
   const populationMetric =
     results?.metrics.find((metric) =>
-      metric.label.toLowerCase().includes('population')
+      metric.label
+        .toLowerCase()
+        .includes('population')
     );
 
   const accessibilityMetric =
     results?.metrics.find((metric) =>
-      metric.label.toLowerCase().includes('access')
+      metric.label
+        .toLowerCase()
+        .includes('access')
     );
 
   const distanceMetric =
     results?.metrics.find(
       (metric) =>
-        metric.label.toLowerCase().includes('distance') ||
+        metric.label
+          .toLowerCase()
+          .includes('distance') ||
         metric.unit.toLowerCase() === 'km'
     );
+
+  // ============================================================
+  // CHART DATA
+  // ============================================================
 
   const chartData = results
     ? results.metrics.map((metric) => ({
@@ -139,17 +165,30 @@ export function SimulatorPage() {
       }))
     : [];
 
+  // ============================================================
+  // UI
+  // ============================================================
+
   return (
     <div className="max-w-5xl mx-auto py-6 space-y-6">
+
       <PageHeader
         title="Impact Simulator"
         description="Estimate how selecting a parcel could change service accessibility and population coverage."
       />
 
-      {/* Simulation Controls */}
+      {/* ======================================================
+          SIMULATION CONTROLS
+      ====================================================== */}
+
       <Card className="p-6">
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-          {/* Parcel */}
+
+          {/* --------------------------------------------------
+              PARCEL
+          -------------------------------------------------- */}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Selected Parcel
@@ -157,11 +196,17 @@ export function SimulatorPage() {
 
             <Input
               value={parcelId}
-              onChange={(e: any) => setParcelId(e.target.value)}
+              onChange={(e: any) =>
+                setParcelId(e.target.value)
+              }
+              placeholder="e.g. SYN-P-00959"
             />
           </div>
 
-          {/* Facility */}
+          {/* --------------------------------------------------
+              FACILITY
+          -------------------------------------------------- */}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Facility Type
@@ -179,11 +224,16 @@ export function SimulatorPage() {
                 },
               ]}
               value={facility}
-              onChange={(val: any) => setFacility(val)}
+              onChange={(val: any) =>
+                setFacility(val)
+              }
             />
           </div>
 
-          {/* Radius */}
+          {/* --------------------------------------------------
+              RADIUS
+          -------------------------------------------------- */}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Service Radius
@@ -193,13 +243,20 @@ export function SimulatorPage() {
               type="number"
               suffix="km"
               value={radius}
+              min={0.1}
+              step={0.1}
               onChange={(e: any) =>
-                setRadius(Number(e.target.value))
+                setRadius(
+                  Number(e.target.value)
+                )
               }
             />
           </div>
 
-          {/* Simulate */}
+          {/* --------------------------------------------------
+              SIMULATE BUTTON
+          -------------------------------------------------- */}
+
           <div>
             <Button
               variant="primary"
@@ -207,21 +264,71 @@ export function SimulatorPage() {
               onClick={handleSimulate}
               disabled={isSimulating}
             >
-              {isSimulating ? 'Simulating...' : 'Simulate Impact'}
+              {isSimulating
+                ? 'Simulating...'
+                : 'Simulate Impact'}
             </Button>
           </div>
+
         </div>
 
         <p className="text-xs text-gray-400 mt-4 italic">
-          Prototype simulation — illustrative data
+          Simulation results are generated by the BHUMI-X backend.
         </p>
+
       </Card>
 
-      {/* Results */}
+      {/* ======================================================
+          ERROR
+      ====================================================== */}
+
+      {error && (
+        <Card className="p-5 border-red-200 bg-red-50">
+
+          <div className="flex items-start gap-3">
+
+            <AlertTriangle
+              className="text-red-500 shrink-0"
+              size={22}
+            />
+
+            <div>
+
+              <h3 className="font-semibold text-red-800">
+                Simulation unavailable
+              </h3>
+
+              <p className="text-sm text-red-700 mt-1">
+                {error}
+              </p>
+
+              <p className="text-xs text-red-600 mt-2">
+                Check that the FastAPI backend is running
+                and that POST /api/simulation/impact is
+                available.
+              </p>
+
+            </div>
+
+          </div>
+
+        </Card>
+      )}
+
+      {/* ======================================================
+          RESULTS
+      ====================================================== */}
+
       {results && (
+
         <div className="space-y-6 animate-fadeIn">
-          {/* Additional Population */}
+
+          {/* ==================================================
+              ADDITIONAL POPULATION
+          ================================================== */}
+
           <div className="bg-green-50 border border-green-200 text-green-900 p-6 rounded-lg text-center shadow-sm">
+
             <h2 className="text-3xl font-bold">
               +
               {results.additional_population_served.toLocaleString()}
@@ -230,18 +337,29 @@ export function SimulatorPage() {
             <p className="text-green-700">
               additional population served
             </p>
+
           </div>
 
-          {/* Metric Cards */}
+          {/* ==================================================
+              METRIC CARDS
+          ================================================== */}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Population */}
+
+            {/* ------------------------------------------------
+                POPULATION
+            ------------------------------------------------ */}
+
             <Card className="p-6 text-center">
+
               <h3 className="text-sm font-medium text-gray-500 mb-2">
                 Population Served
               </h3>
 
               {populationMetric ? (
+
                 <div className="flex items-center justify-center space-x-3">
+
                   <span className="text-xl text-gray-500">
                     {populationMetric.before.toLocaleString()}
                   </span>
@@ -254,22 +372,38 @@ export function SimulatorPage() {
                   <span className="text-2xl font-bold text-gray-900">
                     {populationMetric.after.toLocaleString()}
                   </span>
+
                 </div>
+
               ) : (
-                <p className="text-gray-400">No data available</p>
+
+                <p className="text-gray-400">
+                  No population data
+                </p>
+
               )}
+
             </Card>
 
-            {/* Accessibility */}
+            {/* ------------------------------------------------
+                ACCESSIBILITY
+            ------------------------------------------------ */}
+
             <Card className="p-6 text-center">
+
               <h3 className="text-sm font-medium text-gray-500 mb-2">
                 Service Accessibility
               </h3>
 
               {accessibilityMetric ? (
+
                 <div className="flex items-center justify-center space-x-3">
+
                   <span className="text-xl text-gray-500">
-                    {accessibilityMetric.before}%
+                    {accessibilityMetric.before}
+                    {accessibilityMetric.unit === '%'
+                      ? '%'
+                      : ''}
                   </span>
 
                   <ArrowUp
@@ -278,24 +412,43 @@ export function SimulatorPage() {
                   />
 
                   <span className="text-2xl font-bold text-gray-900">
-                    {accessibilityMetric.after}%
+                    {accessibilityMetric.after}
+                    {accessibilityMetric.unit === '%'
+                      ? '%'
+                      : ''}
                   </span>
+
                 </div>
+
               ) : (
-                <p className="text-gray-400">No data available</p>
+
+                <p className="text-gray-400">
+                  No accessibility data
+                </p>
+
               )}
+
             </Card>
 
-            {/* Distance */}
+            {/* ------------------------------------------------
+                DISTANCE
+            ------------------------------------------------ */}
+
             <Card className="p-6 text-center">
+
               <h3 className="text-sm font-medium text-gray-500 mb-2">
                 Average Travel Distance
               </h3>
 
               {distanceMetric ? (
+
                 <div className="flex items-center justify-center space-x-3">
+
                   <span className="text-xl text-gray-500">
-                    {distanceMetric.before} km
+                    {distanceMetric.before}
+                    {distanceMetric.unit
+                      ? ` ${distanceMetric.unit}`
+                      : ''}
                   </span>
 
                   <ArrowDown
@@ -304,18 +457,114 @@ export function SimulatorPage() {
                   />
 
                   <span className="text-2xl font-bold text-gray-900">
-                    {distanceMetric.after} km
+                    {distanceMetric.after}
+                    {distanceMetric.unit
+                      ? ` ${distanceMetric.unit}`
+                      : ''}
                   </span>
+
                 </div>
+
               ) : (
-                <p className="text-gray-400">No data available</p>
+
+                <p className="text-gray-400">
+                  No distance data
+                </p>
+
               )}
+
             </Card>
+
           </div>
 
-          {/* Comparison Chart */}
+          {/* ==================================================
+              METRIC DETAILS
+          ================================================== */}
+
+          <Card className="p-6">
+
+            <h3 className="text-lg font-semibold text-gray-900 mb-5">
+              Simulation Metrics
+            </h3>
+
+            <div className="space-y-4">
+
+              {results.metrics.map(
+                (metric, index) => (
+
+                  <div
+                    key={`${metric.label}-${index}`}
+                    className="border-b border-gray-100 pb-4 last:border-b-0"
+                  >
+
+                    <div className="flex items-center justify-between">
+
+                      <div>
+
+                        <p className="font-medium text-gray-900">
+                          {metric.label}
+                        </p>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          Before → After
+                        </p>
+
+                      </div>
+
+                      <div className="text-right">
+
+                        <p className="font-semibold text-gray-900">
+
+                          {metric.before}
+
+                          {' → '}
+
+                          {metric.after}
+
+                          {metric.unit
+                            ? ` ${metric.unit}`
+                            : ''}
+
+                        </p>
+
+                        <p className="text-xs text-green-600 mt-1">
+                          {metric.improvement_pct >= 0
+                            ? '+'
+                            : ''}
+                          {metric.improvement_pct.toFixed(
+                            1
+                          )}
+                          % change
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+          </Card>
+
+          {/* ==================================================
+              COMPARISON CHART
+          ================================================== */}
+
           <Card className="p-6 h-96">
-            <ResponsiveContainer width="100%" height="100%">
+
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Before vs After
+            </h3>
+
+            <ResponsiveContainer
+              width="100%"
+              height="90%"
+            >
+
               <BarChart
                 data={chartData}
                 margin={{
@@ -325,6 +574,7 @@ export function SimulatorPage() {
                   bottom: 5,
                 }}
               >
+
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
@@ -335,17 +585,23 @@ export function SimulatorPage() {
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#6B7280' }}
+                  tick={{
+                    fill: '#6B7280',
+                  }}
                 />
 
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#6B7280' }}
+                  tick={{
+                    fill: '#6B7280',
+                  }}
                 />
 
                 <Tooltip
-                  cursor={{ fill: '#F3F4F6' }}
+                  cursor={{
+                    fill: '#F3F4F6',
+                  }}
                   contentStyle={{
                     borderRadius: '8px',
                     border: 'none',
@@ -364,21 +620,39 @@ export function SimulatorPage() {
                 <Bar
                   dataKey="Before"
                   fill="#3B82F6"
-                  radius={[4, 4, 0, 0]}
+                  radius={[
+                    4,
+                    4,
+                    0,
+                    0,
+                  ]}
                   maxBarSize={50}
                 />
 
                 <Bar
                   dataKey="After"
                   fill="#10B981"
-                  radius={[4, 4, 0, 0]}
+                  radius={[
+                    4,
+                    4,
+                    0,
+                    0,
+                  ]}
                   maxBarSize={50}
                 />
+
               </BarChart>
+
             </ResponsiveContainer>
+
           </Card>
+
         </div>
+
       )}
+
     </div>
   );
 }
+
+export default SimulatorPage;

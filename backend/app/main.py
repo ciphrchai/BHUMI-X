@@ -8,6 +8,7 @@ from app.routers import (
     data_health,
     reports,
     simulation,
+    ml,
 )
 
 
@@ -42,7 +43,7 @@ app.include_router(analysis.router)
 app.include_router(data_health.router)
 app.include_router(reports.router)
 app.include_router(simulation.router)
-
+app.include_router(ml.router)
 @app.get("/")
 def root():
     return {

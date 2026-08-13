@@ -28,3 +28,41 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Python virtual environments
+venv/
+.venv/
+backend/venv/
+
+# BHUMI-X generated dataset archive
+BHUMI_X_SYNTHETIC_DATA_V2.zip
+
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+backend/venv/
+
+# BHUMI-X local ML environment
+ml/venv/
+
+# Large ML datasets
+ml/data/
+ml/*.csv
+
+# Trained model binaries
+ml/models/*.joblib
+
+# Large dataset archive
+BHUMI_X_SYNTHETIC_DATA_V2.zip

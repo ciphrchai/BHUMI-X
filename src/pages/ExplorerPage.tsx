@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import PageHeader from '../components/layout/PageHeader';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import MapContainer from '../components/gis/MapContainer';
+
 import * as parcelService from '../services/parcelService';
+
 import type {
   Parcel,
   GeoJSONFeatureCollection,
   SuitabilityStatus,
-  OwnershipType,
   LandUseType,
-  RiskLevel,
+  FloodRisk,
 } from '../types';
 
 export function ExplorerPage() {
@@ -25,23 +27,32 @@ export function ExplorerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // --------------------------------------------------
+  // FILTERS
+  // --------------------------------------------------
+
   const [search, setSearch] = useState('');
-  const [landUse, setLandUse] = useState<'all' | LandUseType>('all');
-  const [ownership, setOwnership] =
-    useState<'all' | OwnershipType>('all');
+
+  const [landUse, setLandUse] =
+    useState<'all' | LandUseType>('all');
+
   const [suitability, setSuitability] =
     useState<'all' | SuitabilityStatus>('all');
-  const [risk, setRisk] =
-    useState<'all' | RiskLevel>('all');
+
+  const [floodRisk, setFloodRisk] =
+    useState<'all' | FloodRisk>('all');
+
   const [minArea, setMinArea] = useState('');
 
-  // Selected parcel
+  // --------------------------------------------------
+  // SELECTED PARCEL
+  // --------------------------------------------------
+
   const [selectedParcelId, setSelectedParcelId] =
     useState<string | null>(null);
 
   // --------------------------------------------------
-  // LOAD PARCEL DATA
+  // LOAD DATA
   // --------------------------------------------------
 
   useEffect(() => {
@@ -68,8 +79,14 @@ export function ExplorerPage() {
       } catch (err) {
         if (cancelled) return;
 
-        console.error('Failed to load explorer data:', err);
-        setError('Unable to load parcel data.');
+        console.error(
+          'Failed to load BHUMI-X explorer data:',
+          err
+        );
+
+        setError(
+          'Unable to load parcel data. Check that the BHUMI-X backend is running.'
+        );
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -85,122 +102,7 @@ export function ExplorerPage() {
   }, []);
 
   // --------------------------------------------------
-  // FILTER PARCELS
-  // --------------------------------------------------
-
-  const filteredParcels = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    return parcels.filter((parcel) => {
-      const matchesSearch =
-        !normalizedSearch ||
-        parcel.parcel_id
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        parcel.location
-          .toLowerCase()
-          .includes(normalizedSearch);
-
-      const matchesLandUse =
-        landUse === 'all' ||
-        parcel.land_use === landUse;
-
-      const matchesOwnership =
-        ownership === 'all' ||
-        parcel.ownership === ownership;
-
-      const matchesSuitability =
-        suitability === 'all' ||
-        parcel.suitability_status === suitability;
-
-      const matchesRisk =
-        risk === 'all' ||
-        parcel.environmental_risk === risk;
-
-      const matchesArea =
-        !minArea ||
-        parcel.area >= Number(minArea);
-
-      return (
-        matchesSearch &&
-        matchesLandUse &&
-        matchesOwnership &&
-        matchesSuitability &&
-        matchesRisk &&
-        matchesArea
-      );
-    });
-  }, [
-    parcels,
-    search,
-    landUse,
-    ownership,
-    suitability,
-    risk,
-    minArea,
-  ]);
-
-  // --------------------------------------------------
-  // FILTER MAP FEATURES
-  // --------------------------------------------------
-
-  const filteredGeojson = useMemo(() => {
-    if (!geojsonData) return null;
-
-    const visibleIds = new Set(
-      filteredParcels.map((parcel) => parcel.parcel_id)
-    );
-
-    return {
-      ...geojsonData,
-      features: geojsonData.features.filter((feature) => {
-        const parcelId =
-          feature.properties?.parcel_id as string | undefined;
-
-        return parcelId
-          ? visibleIds.has(parcelId)
-          : false;
-      }),
-    };
-  }, [geojsonData, filteredParcels]);
-
-  // --------------------------------------------------
-  // SELECTED PARCEL
-  // --------------------------------------------------
-
-  const selectedParcel = useMemo(() => {
-    if (!selectedParcelId) return null;
-
-    return (
-      parcels.find(
-        (parcel) => parcel.parcel_id === selectedParcelId
-      ) ?? null
-    );
-  }, [parcels, selectedParcelId]);
-
-  // --------------------------------------------------
-  // PARCEL CLICK
-  // --------------------------------------------------
-
-  const handleParcelClick = (parcelId: string) => {
-    setSelectedParcelId(parcelId);
-  };
-
-  // --------------------------------------------------
-  // RESET FILTERS
-  // --------------------------------------------------
-
-  const resetFilters = () => {
-    setSearch('');
-    setLandUse('all');
-    setOwnership('all');
-    setSuitability('all');
-    setRisk('all');
-    setMinArea('');
-  };
-
-  // --------------------------------------------------
-  // LABEL HELPERS
+  // HELPERS
   // --------------------------------------------------
 
   const formatLabel = (value?: string) => {
@@ -213,6 +115,140 @@ export function ExplorerPage() {
       );
   };
 
+  const formatNumber = (
+    value: number | undefined,
+    decimals = 0
+  ) => {
+    if (value === undefined || value === null) {
+      return '—';
+    }
+
+    return value.toLocaleString('en-IN', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  };
+
+  // --------------------------------------------------
+  // FILTER PARCELS
+  // --------------------------------------------------
+
+  const filteredParcels = useMemo(() => {
+    const normalizedSearch =
+      search.trim().toLowerCase();
+
+    return parcels.filter((parcel) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        parcel.parcel_id
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        parcel.study_zone
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        parcel.land_use
+          .toLowerCase()
+          .includes(normalizedSearch);
+
+      const matchesLandUse =
+        landUse === 'all' ||
+        parcel.land_use === landUse;
+
+      const matchesSuitability =
+        suitability === 'all' ||
+        parcel.suitability_status === suitability;
+
+      const matchesFloodRisk =
+        floodRisk === 'all' ||
+        parcel.flood_risk === floodRisk;
+
+      const matchesArea =
+        !minArea ||
+        parcel.area_sq_m >= Number(minArea);
+
+      return (
+        matchesSearch &&
+        matchesLandUse &&
+        matchesSuitability &&
+        matchesFloodRisk &&
+        matchesArea
+      );
+    });
+  }, [
+    parcels,
+    search,
+    landUse,
+    suitability,
+    floodRisk,
+    minArea,
+  ]);
+
+  // --------------------------------------------------
+  // FILTER MAP FEATURES
+  // --------------------------------------------------
+
+  const filteredGeojson = useMemo(() => {
+    if (!geojsonData) return null;
+
+    const visibleIds = new Set(
+      filteredParcels.map(
+        (parcel) => parcel.parcel_id
+      )
+    );
+
+    return {
+      ...geojsonData,
+
+      features: geojsonData.features.filter(
+        (feature) => {
+          const parcelId =
+            feature.properties?.parcel_id as
+              | string
+              | undefined;
+
+          return parcelId
+            ? visibleIds.has(parcelId)
+            : false;
+        }
+      ),
+    };
+  }, [geojsonData, filteredParcels]);
+
+  // --------------------------------------------------
+  // SELECTED PARCEL
+  // --------------------------------------------------
+
+  const selectedParcel = useMemo(() => {
+    if (!selectedParcelId) return null;
+
+    return (
+      parcels.find(
+        (parcel) =>
+          parcel.parcel_id === selectedParcelId
+      ) ?? null
+    );
+  }, [parcels, selectedParcelId]);
+
+  // --------------------------------------------------
+  // MAP CLICK
+  // --------------------------------------------------
+
+  const handleParcelClick = (parcelId: string) => {
+    setSelectedParcelId(parcelId);
+  };
+
+  // --------------------------------------------------
+  // RESET
+  // --------------------------------------------------
+
+  const resetFilters = () => {
+    setSearch('');
+    setLandUse('all');
+    setSuitability('all');
+    setFloodRisk('all');
+    setMinArea('');
+  };
+
   // --------------------------------------------------
   // LOADING
   // --------------------------------------------------
@@ -222,12 +258,12 @@ export function ExplorerPage() {
       <div className="max-w-7xl mx-auto py-6">
         <PageHeader
           title="Land Explorer"
-          description="Explore and inspect candidate land parcels."
+          description="Explore and inspect BHUMI-X land parcels."
         />
 
         <Card className="p-10 text-center">
           <p className="text-gray-600">
-            Loading parcel data...
+            Loading BHUMI-X parcel data...
           </p>
         </Card>
       </div>
@@ -243,11 +279,18 @@ export function ExplorerPage() {
       <div className="max-w-7xl mx-auto py-6">
         <PageHeader
           title="Land Explorer"
-          description="Explore and inspect candidate land parcels."
+          description="Explore and inspect BHUMI-X land parcels."
         />
 
         <Card className="p-8">
-          <p className="text-red-600">{error}</p>
+          <p className="text-red-600 font-medium">
+            {error}
+          </p>
+
+          <p className="text-sm text-gray-500 mt-2">
+            Make sure FastAPI is running on
+            http://127.0.0.1:8000
+          </p>
         </Card>
       </div>
     );
@@ -262,7 +305,7 @@ export function ExplorerPage() {
 
       <PageHeader
         title="Land Explorer"
-        description="Explore land parcels, apply filters, and inspect spatial candidates."
+        description="Explore BHUMI-X parcels, environmental conditions, suitability and planning indicators."
       />
 
       {/* =================================================
@@ -279,7 +322,7 @@ export function ExplorerPage() {
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              Narrow down parcels based on planning requirements.
+              Filter the BHUMI-X dataset.
             </p>
           </div>
 
@@ -308,7 +351,7 @@ export function ExplorerPage() {
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              placeholder="Parcel ID or location..."
+              placeholder="SYN-P-07385..."
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -329,63 +372,34 @@ export function ExplorerPage() {
                     | LandUseType
                 )
               }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
             >
-              <option value="all">All Land Uses</option>
-              <option value="institutional">
-                Institutional
+              <option value="all">
+                All Land Uses
               </option>
+
               <option value="residential">
                 Residential
               </option>
+
               <option value="commercial">
                 Commercial
               </option>
+
+              <option value="mixed_use">
+                Mixed Use
+              </option>
+
+              <option value="institutional">
+                Institutional
+              </option>
+
               <option value="industrial">
                 Industrial
               </option>
-              <option value="agricultural">
-                Agricultural
-              </option>
-              <option value="mixed">Mixed</option>
-              <option value="vacant">Vacant</option>
-              <option value="forest">Forest</option>
-              <option value="wetland">Wetland</option>
-            </select>
-          </div>
 
-          {/* Ownership */}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ownership
-            </label>
-
-            <select
-              value={ownership}
-              onChange={(event) =>
-                setOwnership(
-                  event.target.value as
-                    | 'all'
-                    | OwnershipType
-                )
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">
-                All Ownership Types
-              </option>
-              <option value="government">
-                Government
-              </option>
-              <option value="private">
-                Private
-              </option>
-              <option value="disputed">
-                Disputed
-              </option>
-              <option value="unknown">
-                Unknown
+              <option value="open_space">
+                Open Space
               </option>
             </select>
           </div>
@@ -406,52 +420,63 @@ export function ExplorerPage() {
                     | SuitabilityStatus
                 )
               }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
             >
               <option value="all">
                 All Suitability
               </option>
-              <option value="highly_suitable">
+
+              <option value="HIGHLY_SUITABLE">
                 Highly Suitable
               </option>
-              <option value="suitable">
+
+              <option value="SUITABLE">
                 Suitable
               </option>
-              <option value="moderate">
+
+              <option value="MODERATE">
                 Moderate
               </option>
-              <option value="unsuitable">
+
+              <option value="UNSUITABLE">
                 Unsuitable
-              </option>
-              <option value="restricted">
-                Restricted
               </option>
             </select>
           </div>
 
-          {/* Environmental Risk */}
+          {/* Flood Risk */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Environmental Risk
+              Flood Risk
             </label>
 
             <select
-              value={risk}
+              value={floodRisk}
               onChange={(event) =>
-                setRisk(
+                setFloodRisk(
                   event.target.value as
                     | 'all'
-                    | RiskLevel
+                    | FloodRisk
                 )
               }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
             >
-              <option value="all">All Risk Levels</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
+              <option value="all">
+                All Flood Risk
+              </option>
+
+              <option value="low">
+                Low
+              </option>
+
+              <option value="moderate">
+                Moderate
+              </option>
+
+              <option value="high">
+                High
+              </option>
             </select>
           </div>
 
@@ -470,45 +495,34 @@ export function ExplorerPage() {
                 setMinArea(event.target.value)
               }
               placeholder="e.g. 1000"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
 
         </div>
 
-        {/* Filter result count */}
+        {/* Count */}
 
-        <div className="mt-5 pt-4 border-t border-gray-200 flex items-center justify-between">
+        <div className="mt-5 pt-4 border-t border-gray-200">
 
           <p className="text-sm text-gray-600">
             Showing{' '}
             <span className="font-semibold text-gray-900">
-              {filteredParcels.length}
+              {filteredParcels.length.toLocaleString()}
             </span>{' '}
             of{' '}
             <span className="font-semibold text-gray-900">
-              {parcels.length}
+              {parcels.length.toLocaleString()}
             </span>{' '}
             parcels
           </p>
-
-          {(search ||
-            landUse !== 'all' ||
-            ownership !== 'all' ||
-            suitability !== 'all' ||
-            risk !== 'all' ||
-            minArea) && (
-            <span className="text-xs text-blue-600 font-medium">
-              Filters active
-            </span>
-          )}
 
         </div>
 
       </Card>
 
       {/* =================================================
-          MAP + PARCEL INFORMATION
+          MAP + INFORMATION
       ================================================= */}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
@@ -521,16 +535,16 @@ export function ExplorerPage() {
 
             <div>
               <h2 className="font-semibold text-gray-900">
-                Parcel Map
+                BHUMI-X Parcel Map
               </h2>
 
               <p className="text-xs text-gray-500 mt-1">
-                Click a parcel to inspect it.
+                Select a parcel to inspect its intelligence profile.
               </p>
             </div>
 
             <Badge variant="default">
-              {filteredParcels.length} visible
+              {filteredParcels.length.toLocaleString()} visible
             </Badge>
 
           </div>
@@ -539,14 +553,22 @@ export function ExplorerPage() {
 
             {filteredGeojson &&
             filteredGeojson.features.length > 0 ? (
+
               <MapContainer
                 geojsonData={filteredGeojson}
-                highlightedParcelId={selectedParcelId}
-                onParcelClick={handleParcelClick}
+                highlightedParcelId={
+                  selectedParcelId
+                }
+                onParcelClick={
+                  handleParcelClick
+                }
                 interactive={true}
               />
+
             ) : (
+
               <div className="h-full flex items-center justify-center bg-gray-50">
+
                 <div className="text-center">
 
                   <p className="font-medium text-gray-700">
@@ -554,10 +576,11 @@ export function ExplorerPage() {
                   </p>
 
                   <p className="text-sm text-gray-500 mt-1">
-                    Try changing or resetting the filters.
+                    Try changing the filters.
                   </p>
 
                   <div className="mt-4">
+
                     <Button
                       variant="secondary"
                       size="sm"
@@ -565,24 +588,31 @@ export function ExplorerPage() {
                     >
                       Reset Filters
                     </Button>
+
                   </div>
 
                 </div>
+
               </div>
+
             )}
 
           </div>
 
         </Card>
 
-        {/* PARCEL INFORMATION */}
+        {/* =================================================
+            PARCEL INFORMATION
+        ================================================= */}
 
         <Card className="overflow-hidden">
 
           <div className="px-5 py-4 border-b border-gray-200">
+
             <h2 className="font-semibold text-gray-900">
-              Parcel Information
+              Parcel Intelligence
             </h2>
+
           </div>
 
           {selectedParcel ? (
@@ -592,6 +622,7 @@ export function ExplorerPage() {
               {/* ID */}
 
               <div>
+
                 <p className="text-xs text-gray-500 uppercase tracking-wide">
                   Parcel ID
                 </p>
@@ -599,6 +630,7 @@ export function ExplorerPage() {
                 <p className="text-2xl font-bold text-blue-700 mt-1">
                   {selectedParcel.parcel_id}
                 </p>
+
               </div>
 
               {/* Suitability */}
@@ -612,7 +644,7 @@ export function ExplorerPage() {
                 <Badge
                   variant={
                     selectedParcel.suitability_status ===
-                    'highly_suitable'
+                    'HIGHLY_SUITABLE'
                       ? 'success'
                       : 'default'
                   }
@@ -627,30 +659,43 @@ export function ExplorerPage() {
               {/* Score */}
 
               <div className="flex items-center justify-between">
+
                 <span className="text-sm text-gray-600">
                   Suitability Score
                 </span>
 
                 <span className="font-bold text-gray-900">
-                  {selectedParcel.suitability_score ?? '—'}
+                  {formatNumber(
+                    selectedParcel.suitability_score,
+                    2
+                  )}
+                  /100
                 </span>
+
               </div>
 
               {/* Area */}
 
               <div className="flex items-center justify-between">
+
                 <span className="text-sm text-gray-600">
                   Area
                 </span>
 
                 <span className="font-semibold text-gray-900">
-                  {selectedParcel.area.toLocaleString()} m²
+                  {formatNumber(
+                    selectedParcel.area_sq_m,
+                    1
+                  )}{' '}
+                  m²
                 </span>
+
               </div>
 
               {/* Land Use */}
 
               <div className="flex items-center justify-between">
+
                 <span className="text-sm text-gray-600">
                   Land Use
                 </span>
@@ -660,73 +705,236 @@ export function ExplorerPage() {
                     selectedParcel.land_use
                   )}
                 </span>
+
               </div>
 
-              {/* Ownership */}
+              {/* Study Zone */}
 
               <div className="flex items-center justify-between">
+
                 <span className="text-sm text-gray-600">
-                  Ownership
+                  Study Zone
                 </span>
 
                 <span className="font-medium text-gray-900">
                   {formatLabel(
-                    selectedParcel.ownership
+                    selectedParcel.study_zone
                   )}
                 </span>
-              </div>
 
-              {/* Location */}
-
-              <div>
-                <p className="text-sm text-gray-600">
-                  Location
-                </p>
-
-                <p className="font-medium text-gray-900 mt-1">
-                  {selectedParcel.location}
-                </p>
-              </div>
-
-              {/* Risk */}
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">
-                  Environmental Risk
-                </span>
-
-                <span className="font-medium capitalize text-gray-900">
-                  {selectedParcel.environmental_risk ??
-                    '—'}
-                </span>
               </div>
 
               {/* Population */}
 
               <div className="flex items-center justify-between">
+
                 <span className="text-sm text-gray-600">
-                  Population Nearby
+                  Population / 1 km
                 </span>
 
                 <span className="font-medium text-gray-900">
-                  {selectedParcel.population_nearby?.toLocaleString() ??
-                    '—'}
+                  {formatNumber(
+                    selectedParcel.population_1km
+                  )}
                 </span>
+
+              </div>
+
+              {/* Population density */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Population Density
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.population_density,
+                    1
+                  )}
+                </span>
+
               </div>
 
               {/* Road */}
 
               <div className="flex items-center justify-between">
+
                 <span className="text-sm text-gray-600">
-                  Distance to Road
+                  Road Distance
                 </span>
 
                 <span className="font-medium text-gray-900">
-                  {selectedParcel.distance_to_road !==
-                  undefined
-                    ? `${selectedParcel.distance_to_road} km`
-                    : '—'}
+                  {formatNumber(
+                    selectedParcel.road_distance_m,
+                    1
+                  )}{' '}
+                  m
                 </span>
+
+              </div>
+
+              {/* School */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Nearest School
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.nearest_school_distance_m,
+                    1
+                  )}{' '}
+                  m
+                </span>
+
+              </div>
+
+              {/* Hospital */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Nearest Hospital
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.nearest_hospital_distance_m,
+                    1
+                  )}{' '}
+                  m
+                </span>
+
+              </div>
+
+              {/* Infrastructure */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Infrastructure
+                </span>
+
+                <span className="font-bold text-gray-900">
+                  {formatNumber(
+                    selectedParcel.infrastructure_score,
+                    1
+                  )}
+                  /100
+                </span>
+
+              </div>
+
+              {/* Environmental Risk */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Environmental Risk
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.environmental_risk,
+                    1
+                  )}
+                </span>
+
+              </div>
+
+              {/* Flood Risk */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Flood Risk
+                </span>
+
+                <span className="font-medium capitalize text-gray-900">
+                  {selectedParcel.flood_risk}
+                </span>
+
+              </div>
+
+              {/* Heat */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Heat Stress
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.heat_stress_pct,
+                    1
+                  )}
+                  %
+                </span>
+
+              </div>
+
+              {/* Green Cover */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Green Cover
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.green_cover_pct,
+                    1
+                  )}
+                  %
+                </span>
+
+              </div>
+
+              {/* BMSIT Distance */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Distance to BMSIT
+                </span>
+
+                <span className="font-medium text-gray-900">
+                  {formatNumber(
+                    selectedParcel.distance_to_bmsit_km,
+                    3
+                  )}{' '}
+                  km
+                </span>
+
+              </div>
+
+              {/* Confidence */}
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-sm text-gray-600">
+                  Confidence
+                </span>
+
+                <Badge
+                  variant={
+                    selectedParcel.confidence_level ===
+                    'high'
+                      ? 'success'
+                      : 'default'
+                  }
+                >
+                  {formatLabel(
+                    selectedParcel.confidence_level
+                  )}
+                </Badge>
+
               </div>
 
               {/* Divider */}
@@ -752,7 +960,7 @@ export function ExplorerPage() {
           ) : (
 
             <div className="p-8 text-center text-gray-500">
-              Click a parcel on the map to inspect it.
+              Select a parcel on the map to inspect it.
             </div>
 
           )}
