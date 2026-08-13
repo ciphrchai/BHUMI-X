@@ -26,6 +26,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Local development
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
@@ -33,7 +34,7 @@ app.add_middleware(
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
 
-        # Production Vercel frontend
+        # Production frontend
         "https://bhumi-x.vercel.app",
     ],
     allow_credentials=True,
@@ -47,11 +48,17 @@ app.add_middleware(
 # ============================================================
 
 app.include_router(parcels.router)
+
 app.include_router(geojson.router)
+
 app.include_router(analysis.router)
+
 app.include_router(data_health.router)
+
 app.include_router(reports.router)
+
 app.include_router(simulation.router)
+
 app.include_router(ml.router)
 
 
@@ -68,7 +75,7 @@ def root():
 
 
 # ============================================================
-# HEALTH
+# HEALTH CHECK
 # ============================================================
 
 @app.get("/api/health")
@@ -76,18 +83,4 @@ def health_check():
     return {
         "status": "healthy",
         "service": "BHUMI-X API",
-    }
-
-
-# ============================================================
-# DEBUG — REGISTERED ROUTES
-# ============================================================
-
-@app.get("/api/routes")
-def list_routes():
-    return {
-        "routes": [
-            route.path
-            for route in app.routes
-        ]
     }
