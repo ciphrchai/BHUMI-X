@@ -19,10 +19,14 @@ app = FastAPI(
 )
 
 
-# Allow the React frontend to communicate with FastAPI
+# ============================================================
+# CORS CONFIGURATION
+# ============================================================
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://bhumi-x.vercel.app",
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
@@ -30,13 +34,17 @@ app.add_middleware(
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# API Routers
+# ============================================================
+# API ROUTERS
+# ============================================================
+
 app.include_router(geojson.router)
 app.include_router(parcels.router)
 app.include_router(analysis.router)
@@ -44,6 +52,12 @@ app.include_router(data_health.router)
 app.include_router(reports.router)
 app.include_router(simulation.router)
 app.include_router(ml.router)
+
+
+# ============================================================
+# ROOT
+# ============================================================
+
 @app.get("/")
 def root():
     return {
@@ -51,6 +65,10 @@ def root():
         "status": "online",
     }
 
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
 
 @app.get("/api/health")
 def health_check():
