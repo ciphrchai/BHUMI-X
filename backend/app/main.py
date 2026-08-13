@@ -11,11 +11,13 @@ from app.routers import (
     ml,
 )
 
+
 app = FastAPI(
     title="BHUMI-X API",
     description="Government Land Intelligence & Decision Engine",
     version="1.0.0",
 )
+
 
 # ============================================================
 # CORS
@@ -30,16 +32,18 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
+
+        # Production Vercel frontend
         "https://bhumi-x.vercel.app",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 # ============================================================
-# ROUTERS
+# API ROUTERS
 # ============================================================
 
 app.include_router(parcels.router)
@@ -49,6 +53,7 @@ app.include_router(data_health.router)
 app.include_router(reports.router)
 app.include_router(simulation.router)
 app.include_router(ml.router)
+
 
 # ============================================================
 # ROOT
@@ -61,6 +66,7 @@ def root():
         "status": "online",
     }
 
+
 # ============================================================
 # HEALTH
 # ============================================================
@@ -70,4 +76,18 @@ def health_check():
     return {
         "status": "healthy",
         "service": "BHUMI-X API",
+    }
+
+
+# ============================================================
+# DEBUG — REGISTERED ROUTES
+# ============================================================
+
+@app.get("/api/routes")
+def list_routes():
+    return {
+        "routes": [
+            route.path
+            for route in app.routes
+        ]
     }
