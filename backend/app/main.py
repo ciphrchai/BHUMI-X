@@ -26,7 +26,6 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # Local development
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
@@ -34,7 +33,7 @@ app.add_middleware(
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
 
-        # Production frontend
+        # Production Vercel frontend
         "https://bhumi-x.vercel.app",
     ],
     allow_credentials=True,
@@ -47,9 +46,13 @@ app.add_middleware(
 # API ROUTERS
 # ============================================================
 
-app.include_router(parcels.router)
+# IMPORTANT:
+# GeoJSON MUST be registered before
+# /api/parcels/{parcel_id}
 
 app.include_router(geojson.router)
+
+app.include_router(parcels.router)
 
 app.include_router(analysis.router)
 
