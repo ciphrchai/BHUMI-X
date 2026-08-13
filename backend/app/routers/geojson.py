@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pathlib import Path
 import csv
+import hashlib
 
 
 router = APIRouter(
@@ -10,7 +11,7 @@ router = APIRouter(
 
 
 # ============================================================
-# PROJECT PATH
+# BHUMI-X MASTER DATASET
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -18,69 +19,108 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PARCEL_FILE = (
     PROJECT_ROOT
     / "ml"
-    / "01_parcels.csv"
+    / "data"
+    / "06_ml_master_dataset.csv"
 )
 
 
 # ============================================================
-# WKT → GEOJSON
+# BHUMI-X STUDY AREA CENTER
 # ============================================================
 
-def wkt_to_geojson(wkt: str):
+# Yelahanka / BMSIT prototype study area
+CENTER_LATITUDE = 13.1335
+CENTER_LONGITUDE = 77.5650
 
-    if not wkt:
-        return None
 
-    wkt = wkt.strip()
+# ============================================================
+# CREATE DETERMINISTIC PARCEL POLYGON
+# ============================================================
 
-    if not wkt.upper().startswith("POLYGON"):
-        return None
+def create_parcel_polygon(parcel_id: str, index: int):
+
+    """
+    Creates a deterministic small polygon for prototype
+    visualization when the master dataset does not contain
+    explicit geometry coordinates.
+
+    The same parcel_id always produces the same polygon.
+    """
 
     try:
 
-        start = wkt.find("((")
-        end = wkt.rfind("))")
+        # Create deterministic hash
+        digest = hashlib.md5(
+            parcel_id.encode("utf-8")
+        ).hexdigest()
 
-        if start == -1 or end == -1:
-            return None
+        number = int(
+            digest[:12],
+            16
+        )
 
-        coordinate_text = wkt[start + 2:end]
+        # Spread parcels around the study area
+        grid_x = index % 100
+        grid_y = (index // 100) % 100
 
-        rings = []
+        # Small geographic spacing
+        spacing = 0.0012
 
-        ring_strings = coordinate_text.split("),(")
+        longitude = (
+            CENTER_LONGITUDE
+            + (grid_x - 50) * spacing
+        )
 
-        for ring_string in ring_strings:
+        latitude = (
+            CENTER_LATITUDE
+            + (grid_y - 50) * spacing
+        )
 
-            ring = []
+        # Small parcel size
+        size = 0.00035
 
-            for point in ring_string.split(","):
+        # Slight deterministic variation
+        variation = (
+            (number % 100) / 1000000
+        )
 
-                values = point.strip().split()
+        size += variation
 
-                if len(values) < 2:
-                    continue
-
-                longitude = float(values[0])
-                latitude = float(values[1])
-
-                ring.append([
-                    longitude,
-                    latitude,
-                ])
-
-            if ring:
-                rings.append(ring)
-
-        if not rings:
-            return None
 
         return {
             "type": "Polygon",
-            "coordinates": rings,
+            "coordinates": [[
+
+                [
+                    longitude - size,
+                    latitude - size,
+                ],
+
+                [
+                    longitude + size,
+                    latitude - size,
+                ],
+
+                [
+                    longitude + size,
+                    latitude + size,
+                ],
+
+                [
+                    longitude - size,
+                    latitude + size,
+                ],
+
+                [
+                    longitude - size,
+                    latitude - size,
+                ],
+
+            ]],
         }
 
     except Exception:
+
         return None
 
 
@@ -94,7 +134,7 @@ def get_parcels_geojson(
 ):
 
     # --------------------------------------------------------
-    # Check dataset
+    # CHECK DATASET
     # --------------------------------------------------------
 
     if not PARCEL_FILE.exists():
@@ -102,7 +142,7 @@ def get_parcels_geojson(
         raise HTTPException(
             status_code=500,
             detail=(
-                "Parcel GeoJSON dataset not found: "
+                "BHUMI-X master dataset not found: "
                 f"{PARCEL_FILE}"
             ),
         )
@@ -122,7 +162,12 @@ def get_parcels_geojson(
 
             reader = csv.DictReader(file)
 
-            for row in reader:
+
+            # ------------------------------------------------
+            # READ PARCELS
+            # ------------------------------------------------
+
+            for index, row in enumerate(reader):
 
                 parcel_id = (
                     row.get("parcel_id", "")
@@ -139,74 +184,45 @@ def get_parcels_geojson(
 
                 if region:
 
-                    location_values = [
-                        row.get("study_zone", ""),
-                        row.get("location", ""),
-                    ]
+                    study_zone = (
+                        row.get(
+                            "study_zone",
+                            ""
+                        )
+                    )
 
-                    location_text = " ".join(
-                        location_values
+                    land_use = (
+                        row.get(
+                            "land_use",
+                            ""
+                        )
+                    )
+
+                    location_text = (
+                        f"{study_zone} "
+                        f"{land_use}"
                     ).lower()
 
-                    if region.lower() not in location_text:
+                    if (
+                        region.lower()
+                        not in location_text
+                    ):
                         continue
 
 
                 # ------------------------------------------------
-                # WKT GEOMETRY
+                # GEOMETRY
                 # ------------------------------------------------
 
-                geometry = wkt_to_geojson(
-                    row.get("geometry_wkt", "")
+                geometry = (
+                    create_parcel_polygon(
+                        parcel_id,
+                        index,
+                    )
                 )
 
-
-                # ------------------------------------------------
-                # FALLBACK GEOMETRY
-                # ------------------------------------------------
-
                 if geometry is None:
-
-                    try:
-
-                        latitude = float(
-                            row["latitude"]
-                        )
-
-                        longitude = float(
-                            row["longitude"]
-                        )
-
-                        size = 0.00015
-
-                        geometry = {
-                            "type": "Polygon",
-                            "coordinates": [[
-                                [
-                                    longitude - size,
-                                    latitude - size,
-                                ],
-                                [
-                                    longitude + size,
-                                    latitude - size,
-                                ],
-                                [
-                                    longitude + size,
-                                    latitude + size,
-                                ],
-                                [
-                                    longitude - size,
-                                    latitude + size,
-                                ],
-                                [
-                                    longitude - size,
-                                    latitude - size,
-                                ],
-                            ]],
-                        }
-
-                    except Exception:
-                        continue
+                    continue
 
 
                 # ------------------------------------------------
@@ -215,22 +231,25 @@ def get_parcels_geojson(
 
                 properties = dict(row)
 
-                properties.pop(
-                    "geometry_wkt",
-                    None,
-                )
-
 
                 # ------------------------------------------------
-                # FEATURE
+                # GEOJSON FEATURE
                 # ------------------------------------------------
 
-                features.append({
+                feature = {
+
                     "type": "Feature",
+
                     "id": parcel_id,
+
                     "geometry": geometry,
+
                     "properties": properties,
-                })
+
+                }
+
+
+                features.append(feature)
 
 
     except Exception as exc:
@@ -238,17 +257,20 @@ def get_parcels_geojson(
         raise HTTPException(
             status_code=500,
             detail=(
-                "Failed to generate GeoJSON: "
+                "Failed to generate parcel GeoJSON: "
                 f"{str(exc)}"
             ),
         )
 
 
     # ========================================================
-    # GEOJSON RESPONSE
+    # RESPONSE
     # ========================================================
 
     return {
+
         "type": "FeatureCollection",
+
         "features": features,
+
     }
