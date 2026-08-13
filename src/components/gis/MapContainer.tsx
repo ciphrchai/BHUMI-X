@@ -32,13 +32,10 @@ function MapContainerInner({
   interactive = true,
   fitBounds,
 }: MapContainerProps) {
-
   const mapContainer = useRef<HTMLDivElement>(null);
-
   const map = useRef<maplibregl.Map | null>(null);
 
   const { viewState, setViewState } = useMapStore();
-
 
   // ============================================================
   // CLICK HANDLER
@@ -50,7 +47,6 @@ function MapContainerInner({
         features?: maplibregl.MapGeoJSONFeature[];
       }
     ) => {
-
       if (!e.features || e.features.length === 0) {
         return;
       }
@@ -58,7 +54,7 @@ function MapContainerInner({
       const feature = e.features[0];
 
       const parcelId =
-        feature.properties?.parcel_id ||
+        feature.properties?.parcel_id ??
         feature.id;
 
       if (parcelId && onParcelClick) {
@@ -68,44 +64,34 @@ function MapContainerInner({
     [onParcelClick]
   );
 
-
   // ============================================================
   // INITIALIZE MAP
   // ============================================================
 
   useEffect(() => {
-
     if (!mapContainer.current || map.current) {
       return;
     }
 
     const m = new maplibregl.Map({
       container: mapContainer.current,
-
       style: MAP_STYLE_URL,
 
       center: viewState.center,
-
       zoom: viewState.zoom,
 
       pitch: (viewState as any).pitch || 0,
-
       bearing: (viewState as any).bearing || 0,
 
       attributionControl: false,
-
       interactive,
     });
 
-
-    // Navigation
     m.addControl(
       new maplibregl.NavigationControl(),
       'top-right'
     );
 
-
-    // Scale
     m.addControl(
       new maplibregl.ScaleControl({
         unit: 'metric',
@@ -113,10 +99,7 @@ function MapContainerInner({
       'bottom-left'
     );
 
-
-    // Save map position
     m.on('moveend', () => {
-
       const center = m.getCenter();
 
       setViewState({
@@ -126,40 +109,30 @@ function MapContainerInner({
         ],
         zoom: m.getZoom(),
       });
-
     });
-
 
     map.current = m;
 
-
     return () => {
-
       m.remove();
-
       map.current = null;
-
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   // ============================================================
-  // ADD GEOJSON
+  // ADD / UPDATE GEOJSON
   // ============================================================
 
   useEffect(() => {
-
     const m = map.current;
 
     if (!m || !geojsonData) {
       return;
     }
 
-
     const addData = () => {
-
       // --------------------------------------------------------
       // Remove old layers
       // --------------------------------------------------------
@@ -167,18 +140,15 @@ function MapContainerInner({
       const layers = [
         'parcels-selected-fill',
         'parcels-highlight',
-        'parcels-fill',
         'parcels-outline',
+        'parcels-fill',
       ];
 
       layers.forEach((layer) => {
-
         if (m.getLayer(layer)) {
           m.removeLayer(layer);
         }
-
       });
-
 
       // --------------------------------------------------------
       // Remove old source
@@ -188,36 +158,29 @@ function MapContainerInner({
         m.removeSource('parcels');
       }
 
-
       // --------------------------------------------------------
-      // Add source
+      // Add GeoJSON source
       // --------------------------------------------------------
 
       m.addSource('parcels', {
         type: 'geojson',
-
-        data: geojsonData as unknown as GeoJSON.GeoJSON,
+        data: geojsonData as any,
       });
 
-
-      // --------------------------------------------------------
-      // Parcel fill
-      // --------------------------------------------------------
+      // ========================================================
+      // PARCEL FILL
+      // ========================================================
 
       m.addLayer({
-
         id: 'parcels-fill',
-
         type: 'fill',
-
         source: 'parcels',
 
+        minzoom: 11,
+
         paint: {
-
           'fill-color': [
-
             'match',
-
             ['get', 'suitability_status'],
 
             'HIGHLY_SUITABLE',
@@ -251,45 +214,88 @@ function MapContainerInner({
             '#dc2626',
 
             '#64748b',
-          ],
+          ] as any,
 
-          'fill-opacity': 0.38,
+          'fill-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+
+            11,
+            0.06,
+
+            13,
+            0.10,
+
+            14,
+            0.18,
+
+            16,
+            0.30,
+
+            18,
+            0.38,
+          ] as any,
         },
-
       });
 
-
-      // --------------------------------------------------------
-      // Parcel outline
-      // --------------------------------------------------------
+      // ========================================================
+      // PARCEL OUTLINES
+      // ========================================================
 
       m.addLayer({
-
         id: 'parcels-outline',
-
         type: 'line',
-
         source: 'parcels',
 
-        paint: {
+        minzoom: 14,
 
+        paint: {
           'line-color': '#475569',
 
-          'line-width': 0.8,
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
 
-          'line-opacity': 0.7,
+            14,
+            0.25,
 
+            15,
+            0.45,
+
+            16,
+            0.70,
+
+            18,
+            1.0,
+          ] as any,
+
+          'line-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+
+            14,
+            0.20,
+
+            15,
+            0.35,
+
+            16,
+            0.55,
+
+            18,
+            0.70,
+          ] as any,
         },
-
       });
 
-
-      // --------------------------------------------------------
-      // Selected fill
-      // --------------------------------------------------------
+      // ========================================================
+      // SELECTED PARCEL FILL
+      // ========================================================
 
       m.addLayer({
-
         id: 'parcels-selected-fill',
 
         type: 'fill',
@@ -297,32 +303,22 @@ function MapContainerInner({
         source: 'parcels',
 
         paint: {
-
           'fill-color': '#2563eb',
-
-          'fill-opacity': 0.35,
-
+          'fill-opacity': 0.45,
         },
 
         filter: [
-
           '==',
-
           ['get', 'parcel_id'],
-
           '',
-
-        ],
-
+        ] as any,
       });
 
-
-      // --------------------------------------------------------
-      // Selected border
-      // --------------------------------------------------------
+      // ========================================================
+      // SELECTED PARCEL BORDER
+      // ========================================================
 
       m.addLayer({
-
         id: 'parcels-highlight',
 
         type: 'line',
@@ -330,59 +326,59 @@ function MapContainerInner({
         source: 'parcels',
 
         paint: {
-
           'line-color': '#1d4ed8',
 
-          'line-width': 4,
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+
+            10,
+            2,
+
+            14,
+            3,
+
+            16,
+            4,
+
+            18,
+            5,
+          ] as any,
 
           'line-opacity': 1,
-
         },
 
         filter: [
-
           '==',
-
           ['get', 'parcel_id'],
-
           '',
-
-        ],
-
+        ] as any,
       });
 
-
-      // --------------------------------------------------------
-      // Cursor
-      // --------------------------------------------------------
+      // ========================================================
+      // CURSOR
+      // ========================================================
 
       m.on(
         'mouseenter',
         'parcels-fill',
         () => {
-
-          m.getCanvas().style.cursor =
-            'pointer';
-
+          m.getCanvas().style.cursor = 'pointer';
         }
       );
-
 
       m.on(
         'mouseleave',
         'parcels-fill',
         () => {
-
-          m.getCanvas().style.cursor =
-            '';
-
+          m.getCanvas().style.cursor = '';
         }
       );
 
-
-      // --------------------------------------------------------
-      // Click
-      // --------------------------------------------------------
+      // ========================================================
+      // CLICK
+      // ========================================================
 
       m.on(
         'click',
@@ -390,20 +386,16 @@ function MapContainerInner({
         handleParcelClick
       );
 
-
       // ========================================================
-      // AUTOMATICALLY FIT MAP TO PARCELS
+      // FIT MAP TO DATA
       // ========================================================
 
       if (geojsonData.features.length > 0) {
-
         const bounds =
           new maplibregl.LngLatBounds();
 
-
         geojsonData.features.forEach(
           (feature) => {
-
             const geometry =
               feature.geometry;
 
@@ -413,201 +405,153 @@ function MapContainerInner({
               return;
             }
 
-
             geometry.coordinates.forEach(
               (ring) => {
-
                 ring.forEach(
                   (coordinate) => {
-
                     if (
                       coordinate.length >= 2
                     ) {
-
                       bounds.extend([
                         coordinate[0],
                         coordinate[1],
                       ]);
-
                     }
-
                   }
                 );
-
               }
             );
-
           }
         );
 
-
         if (!bounds.isEmpty()) {
-
           m.fitBounds(
             bounds,
             {
-              padding: 60,
+              padding: 70,
 
-              maxZoom: 15,
+              maxZoom: 13,
 
               duration: 800,
             }
           );
-
         }
-
       }
-
     };
 
+    // ============================================================
+    // STYLE LOADING
+    // ============================================================
 
-    // Wait for map style
     if (m.isStyleLoaded()) {
-
       addData();
-
     } else {
-
-      m.once(
-        'load',
-        addData
-      );
-
+      m.once('load', addData);
     }
 
-
+    return () => {
+      m.off(
+        'click',
+        'parcels-fill',
+        handleParcelClick
+      );
+    };
   }, [
     geojsonData,
     handleParcelClick,
   ]);
-
 
   // ============================================================
   // UPDATE SELECTED PARCEL
   // ============================================================
 
   useEffect(() => {
-
     const m = map.current;
 
     if (!m) {
       return;
     }
 
-
     const updateHighlight = () => {
-
-      const filter:
-        maplibregl.ExpressionSpecification =
-        [
-          '==',
-
-          ['get', 'parcel_id'],
-
-          highlightedParcelId || '',
-        ];
-
+      const filter = [
+        '==',
+        ['get', 'parcel_id'],
+        highlightedParcelId || '',
+      ] as any;
 
       if (
         m.getLayer(
           'parcels-selected-fill'
         )
       ) {
-
         m.setFilter(
           'parcels-selected-fill',
-
           filter
         );
-
       }
-
 
       if (
         m.getLayer(
           'parcels-highlight'
         )
       ) {
-
         m.setFilter(
           'parcels-highlight',
-
           filter
         );
-
       }
-
     };
 
-
     if (m.isStyleLoaded()) {
-
       updateHighlight();
-
     } else {
-
       m.once(
         'load',
         updateHighlight
       );
-
     }
-
   }, [
     highlightedParcelId,
   ]);
-
 
   // ============================================================
   // EXTERNAL FIT BOUNDS
   // ============================================================
 
   useEffect(() => {
-
     const m = map.current;
 
     if (!m || !fitBounds) {
       return;
     }
 
-
     m.fitBounds(
       fitBounds,
       {
         padding: 40,
-
         duration: 800,
       }
     );
-
   }, [
     fitBounds,
   ]);
-
 
   // ============================================================
   // RENDER
   // ============================================================
 
   return (
-
     <div
       ref={mapContainer}
-
       className={`w-full h-full ${className}`}
-
       role="application"
-
       aria-label="Interactive GIS map"
     />
-
   );
-
 }
 
-
-const MapContainer =
-  memo(MapContainerInner);
-
+const MapContainer = memo(
+  MapContainerInner
+);
 
 export default MapContainer;
