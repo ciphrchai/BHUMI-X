@@ -34,6 +34,7 @@ function MapContainerInner({
 }: MapContainerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const hasFittedInitialData = useRef(false);
 
   const { viewState, setViewState } = useMapStore();
 
@@ -87,11 +88,13 @@ function MapContainerInner({
       interactive,
     });
 
+    // Navigation
     m.addControl(
       new maplibregl.NavigationControl(),
       'top-right'
     );
 
+    // Scale
     m.addControl(
       new maplibregl.ScaleControl({
         unit: 'metric',
@@ -99,6 +102,7 @@ function MapContainerInner({
       'bottom-left'
     );
 
+    // Save camera position
     m.on('moveend', () => {
       const center = m.getCenter();
 
@@ -132,55 +136,66 @@ function MapContainerInner({
       return;
     }
 
-    const addData = () => {
-      // --------------------------------------------------------
-      // Remove old layers
-      // --------------------------------------------------------
-
-      const layers = [
-        'parcels-selected-fill',
-        'parcels-highlight',
-        'parcels-outline',
-        'parcels-fill',
-      ];
-
-      layers.forEach((layer) => {
-        if (m.getLayer(layer)) {
-          m.removeLayer(layer);
-        }
-      });
+    const addOrUpdateData = () => {
+      const existingSource =
+        m.getSource('parcels') as maplibregl.GeoJSONSource | undefined;
 
       // --------------------------------------------------------
-      // Remove old source
+      // IMPORTANT PERFORMANCE OPTIMIZATION
+      //
+      // If source already exists, update its data instead of
+      // destroying and recreating the entire source/layers.
       // --------------------------------------------------------
 
-      if (m.getSource('parcels')) {
-        m.removeSource('parcels');
+      if (existingSource) {
+        existingSource.setData(
+          geojsonData as any
+        );
+
+        return;
       }
 
       // --------------------------------------------------------
-      // Add GeoJSON source
+      // FIRST LOAD ONLY
       // --------------------------------------------------------
 
       m.addSource('parcels', {
         type: 'geojson',
         data: geojsonData as any,
+
+        /*
+         * Reduce geometry processing overhead.
+         */
+        tolerance: 0.375,
+        buffer: 0,
       });
 
       // ========================================================
       // PARCEL FILL
+      //
+      // IMPORTANT:
+      // Do NOT show thousands of tiny colored parcels when
+      // zoomed out.
+      //
+      // Parcels gradually appear as the user zooms in.
       // ========================================================
 
       m.addLayer({
         id: 'parcels-fill',
+
         type: 'fill',
+
         source: 'parcels',
 
-        minzoom: 11,
+        /*
+         * Parcel coloring starts only when sufficiently zoomed in.
+         */
+        minzoom: 13.5,
 
         paint: {
           'fill-color': [
             'match',
+
             ['get', 'suitability_status'],
 
             'HIGHLY_SUITABLE',
@@ -216,59 +231,69 @@ function MapContainerInner({
             '#64748b',
           ] as any,
 
+          /*
+           * Very subtle at first, stronger when zoomed in.
+           */
           'fill-opacity': [
             'interpolate',
             ['linear'],
             ['zoom'],
 
-            11,
-            0.06,
-
-            13,
-            0.10,
+            13.5,
+            0.04,
 
             14,
-            0.18,
+            0.06,
+
+            15,
+            0.12,
 
             16,
-            0.30,
+            0.22,
+
+            17,
+            0.32,
 
             18,
-            0.38,
+            0.40,
           ] as any,
         },
       });
 
       // ========================================================
       // PARCEL OUTLINES
+      //
+      // Only show boundaries when properly zoomed in.
       // ========================================================
 
       m.addLayer({
         id: 'parcels-outline',
+
         type: 'line',
+
         source: 'parcels',
 
-        minzoom: 14,
+        minzoom: 15,
 
         paint: {
-          'line-color': '#475569',
+          'line-color': '#64748b',
 
           'line-width': [
             'interpolate',
             ['linear'],
             ['zoom'],
 
-            14,
+            15,
             0.25,
 
-            15,
+            16,
             0.45,
 
-            16,
+            17,
             0.70,
 
             18,
-            1.0,
+            0.90,
           ] as any,
 
           'line-opacity': [
@@ -276,23 +301,25 @@ function MapContainerInner({
             ['linear'],
             ['zoom'],
 
-            14,
-            0.20,
-
             15,
-            0.35,
+            0.15,
 
             16,
-            0.55,
+            0.25,
+
+            17,
+            0.40,
 
             18,
-            0.70,
+            0.55,
           ] as any,
         },
       });
 
       // ========================================================
-      // SELECTED PARCEL FILL
+      // SELECTED PARCEL
+      //
+      // This remains visible even when normal parcels are subtle.
       // ========================================================
 
       m.addLayer({
@@ -304,7 +331,8 @@ function MapContainerInner({
 
         paint: {
           'fill-color': '#2563eb',
-          'fill-opacity': 0.45,
+
+          'fill-opacity': 0.50,
         },
 
         filter: [
@@ -387,10 +415,15 @@ function MapContainerInner({
       );
 
       // ========================================================
-      // FIT MAP TO DATA
+      // INITIAL FIT ONLY
+      //
+      // Do NOT refit every time filters change.
       // ========================================================
 
-      if (geojsonData.features.length > 0) {
+      if (
+        !hasFittedInitialData.current &&
+        geojsonData.features.length > 0
+      ) {
         const bounds =
           new maplibregl.LngLatBounds();
 
@@ -430,32 +463,30 @@ function MapContainerInner({
             {
               padding: 70,
 
+              /*
+               * Keep initial view broad.
+               */
               maxZoom: 13,
 
-              duration: 800,
+              duration: 500,
             }
           );
+
+          hasFittedInitialData.current = true;
         }
       }
     };
 
     // ============================================================
-    // STYLE LOADING
+    // WAIT FOR MAP STYLE
     // ============================================================
 
     if (m.isStyleLoaded()) {
-      addData();
+      addOrUpdateData();
     } else {
-      m.once('load', addData);
+      m.once('load', addOrUpdateData);
     }
 
-    return () => {
-      m.off(
-        'click',
-        'parcels-fill',
-        handleParcelClick
-      );
-    };
   }, [
     geojsonData,
     handleParcelClick,
@@ -510,6 +541,7 @@ function MapContainerInner({
         updateHighlight
       );
     }
+
   }, [
     highlightedParcelId,
   ]);
@@ -529,9 +561,10 @@ function MapContainerInner({
       fitBounds,
       {
         padding: 40,
-        duration: 800,
+        duration: 500,
       }
     );
+
   }, [
     fitBounds,
   ]);
