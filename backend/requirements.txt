@@ -4,7 +4,7 @@ anyio==4.14.2
 click==8.2.2
 colorama==0.4.6
 fastapi==0.141.1
-greenlet==3.2.5
+greenlet==3.2.4
 h11==0.16.0
 httpx==0.28.0
 idna==3.18
