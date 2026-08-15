@@ -22,6 +22,7 @@ export default function Navbar() {
   const navLinks = [
     { to: '/overview', label: 'Overview' },
     { to: '/explorer', label: 'Explorer' },
+    { to: '/urban-planning', label: 'Urban Planning 3D' },
     { to: '/analysis', label: 'Analysis' },
     { to: '/results', label: 'Results' },
     { to: '/simulator', label: 'Simulator' },

@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import MapContainer from '../components/gis/MapContainer';
+import { useMapStore } from '../stores';
 
 import * as parcelService from '../services/parcelService';
 
@@ -19,6 +20,7 @@ import type {
 
 export function ExplorerPage() {
   const navigate = useNavigate();
+  const selectParcel = useMapStore((state) => state.selectParcel);
 
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [geojsonData, setGeojsonData] =
@@ -235,6 +237,7 @@ export function ExplorerPage() {
 
   const handleParcelClick = (parcelId: string) => {
     setSelectedParcelId(parcelId);
+    selectParcel(parcelId);
   };
 
   // --------------------------------------------------

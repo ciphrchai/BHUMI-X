@@ -12,6 +12,7 @@ import { DataHealthPage } from './pages/DataHealthPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { UrbanPlanningPage } from './pages/UrbanPlanningPage';
 
 export default function App() {
   return (
@@ -33,6 +34,11 @@ export default function App() {
         <Route
           path="explorer"
           element={<ExplorerPage />}
+        />
+
+        <Route
+          path="urban-planning"
+          element={<UrbanPlanningPage />}
         />
 
         <Route
