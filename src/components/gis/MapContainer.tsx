@@ -1,7 +1,16 @@
-import { useRef, useEffect, useCallback, memo } from 'react';
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  useState,
+  memo,
+} from 'react';
+
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibreWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+
+import maplibreWorker from
+  'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
 import { useMapStore } from '../../stores';
 
@@ -9,20 +18,50 @@ import type {
   GeoJSONFeatureCollection,
 } from '../../types';
 
+
+// ============================================================
+// MAPLIBRE WORKER
+// ============================================================
+
 maplibregl.setWorkerUrl(maplibreWorker);
+
+
+// ============================================================
+// MAP STYLE
+// ============================================================
 
 const MAP_STYLE_URL =
   import.meta.env.VITE_MAP_STYLE_URL ||
   'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+
+// ============================================================
+// PROPS
+// ============================================================
+
 interface MapContainerProps {
   geojsonData?: GeoJSONFeatureCollection;
-  onParcelClick?: (parcelId: string) => void;
+
+  onParcelClick?: (
+    parcelId: string
+  ) => void;
+
   highlightedParcelId?: string | null;
+
   className?: string;
+
   interactive?: boolean;
-  fitBounds?: [[number, number], [number, number]];
+
+  fitBounds?: [
+    [number, number],
+    [number, number]
+  ];
 }
+
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 function MapContainerInner({
   geojsonData,
@@ -32,67 +71,117 @@ function MapContainerInner({
   interactive = true,
   fitBounds,
 }: MapContainerProps) {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<maplibregl.Map | null>(null);
-  const hasFittedInitialData = useRef(false);
 
-  const { viewState, setViewState } = useMapStore();
+  const mapContainer =
+    useRef<HTMLDivElement>(null);
 
-  // ============================================================
+  const map =
+    useRef<maplibregl.Map | null>(null);
+
+  const hasFitted =
+    useRef(false);
+
+  const clickAttached =
+    useRef(false);
+
+  const [is3D, setIs3D] =
+    useState(false);
+
+  const {
+    viewState,
+    setViewState,
+  } = useMapStore();
+
+
+  // ==========================================================
   // CLICK HANDLER
-  // ============================================================
+  // ==========================================================
 
-  const handleParcelClick = useCallback(
-    (
-      e: maplibregl.MapMouseEvent & {
-        features?: maplibregl.MapGeoJSONFeature[];
-      }
-    ) => {
-      if (!e.features || e.features.length === 0) {
-        return;
-      }
+  const handleParcelClick =
+    useCallback(
+      (
+        e: maplibregl.MapMouseEvent & {
+          features?: maplibregl.MapGeoJSONFeature[];
+        }
+      ) => {
 
-      const feature = e.features[0];
+        if (
+          !e.features ||
+          e.features.length === 0
+        ) {
+          return;
+        }
 
-      const parcelId =
-        feature.properties?.parcel_id ??
-        feature.id;
+        const feature =
+          e.features[0];
 
-      if (parcelId && onParcelClick) {
-        onParcelClick(String(parcelId));
-      }
-    },
-    [onParcelClick]
-  );
+        const parcelId =
+          feature.properties?.parcel_id ??
+          feature.id;
 
-  // ============================================================
+        if (
+          parcelId &&
+          onParcelClick
+        ) {
+          onParcelClick(
+            String(parcelId)
+          );
+        }
+      },
+      [onParcelClick]
+    );
+
+
+  // ==========================================================
   // INITIALIZE MAP
-  // ============================================================
+  // ==========================================================
 
   useEffect(() => {
-    if (!mapContainer.current || map.current) {
+
+    if (
+      !mapContainer.current ||
+      map.current
+    ) {
       return;
     }
 
-    const m = new maplibregl.Map({
-      container: mapContainer.current,
-      style: MAP_STYLE_URL,
+    const m =
+      new maplibregl.Map({
 
-      center: viewState.center,
-      zoom: viewState.zoom,
+        container:
+          mapContainer.current,
 
-      pitch: (viewState as any).pitch || 0,
-      bearing: (viewState as any).bearing || 0,
+        style:
+          MAP_STYLE_URL,
 
-      attributionControl: false,
-      interactive,
-    });
+        center:
+          viewState.center,
+
+        zoom:
+          viewState.zoom,
+
+        pitch:
+          0,
+
+        bearing:
+          0,
+
+        attributionControl:
+          false,
+
+        interactive,
+
+      });
+
 
     // Navigation
     m.addControl(
-      new maplibregl.NavigationControl(),
+      new maplibregl.NavigationControl({
+        visualizePitch: true,
+      }),
       'top-right'
     );
+
 
     // Scale
     m.addControl(
@@ -102,466 +191,813 @@ function MapContainerInner({
       'bottom-left'
     );
 
-    // Save camera position
-    m.on('moveend', () => {
-      const center = m.getCenter();
 
-      setViewState({
-        center: [
-          center.lng,
-          center.lat,
-        ],
-        zoom: m.getZoom(),
-      });
-    });
+    // Save camera
+    m.on(
+      'moveend',
+      () => {
+
+        const center =
+          m.getCenter();
+
+        setViewState({
+
+          center: [
+            center.lng,
+            center.lat,
+          ],
+
+          zoom:
+            m.getZoom(),
+
+        });
+
+      }
+    );
+
 
     map.current = m;
 
+
     return () => {
+
       m.remove();
+
       map.current = null;
+
+      clickAttached.current =
+        false;
+
     };
 
+    // Initialize only once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
-  // ============================================================
-  // ADD / UPDATE GEOJSON
-  // ============================================================
+
+  // ==========================================================
+  // ADD PARCEL DATA
+  // ==========================================================
 
   useEffect(() => {
-    const m = map.current;
 
-    if (!m || !geojsonData) {
+    const m =
+      map.current;
+
+    if (
+      !m ||
+      !geojsonData
+    ) {
       return;
     }
 
-    const addOrUpdateData = () => {
-      const existingSource =
-        m.getSource('parcels') as maplibregl.GeoJSONSource | undefined;
 
-      // --------------------------------------------------------
-      // IMPORTANT PERFORMANCE OPTIMIZATION
-      //
-      // If source already exists, update its data instead of
-      // destroying and recreating the entire source/layers.
-      // --------------------------------------------------------
+    const setupLayers =
+      () => {
 
-      if (existingSource) {
-        existingSource.setData(
-          geojsonData as any
-        );
+        if (!m.getSource('parcels')) {
 
-        return;
-      }
+          // ====================================================
+          // GEOJSON SOURCE
+          // ====================================================
 
-      // --------------------------------------------------------
-      // FIRST LOAD ONLY
-      // --------------------------------------------------------
-
-      m.addSource('parcels', {
-        type: 'geojson',
-        data: geojsonData as any,
-
-        /*
-         * Reduce geometry processing overhead.
-         */
-        tolerance: 0.375,
-        buffer: 0,
-      });
-
-      // ========================================================
-      // PARCEL FILL
-      //
-      // IMPORTANT:
-      // Do NOT show thousands of tiny colored parcels when
-      // zoomed out.
-      //
-      // Parcels gradually appear as the user zooms in.
-      // ========================================================
-
-      m.addLayer({
-        id: 'parcels-fill',
-
-        type: 'fill',
-
-        source: 'parcels',
-
-        /*
-         * Parcel coloring starts only when sufficiently zoomed in.
-         */
-        minzoom: 13.5,
-
-        paint: {
-          'fill-color': [
-            'match',
-
-            ['get', 'suitability_status'],
-
-            'HIGHLY_SUITABLE',
-            '#16a34a',
-
-            'highly_suitable',
-            '#16a34a',
-
-            'SUITABLE',
-            '#22c55e',
-
-            'suitable',
-            '#22c55e',
-
-            'MODERATE',
-            '#eab308',
-
-            'moderate',
-            '#eab308',
-
-            'UNSUITABLE',
-            '#f97316',
-
-            'unsuitable',
-            '#f97316',
-
-            'RESTRICTED',
-            '#dc2626',
-
-            'restricted',
-            '#dc2626',
-
-            '#64748b',
-          ] as any,
-
-          /*
-           * Very subtle at first, stronger when zoomed in.
-           */
-          'fill-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-
-            13.5,
-            0.04,
-
-            14,
-            0.06,
-
-            15,
-            0.12,
-
-            16,
-            0.22,
-
-            17,
-            0.32,
-
-            18,
-            0.40,
-          ] as any,
-        },
-      });
-
-      // ========================================================
-      // PARCEL OUTLINES
-      //
-      // Only show boundaries when properly zoomed in.
-      // ========================================================
-
-      m.addLayer({
-        id: 'parcels-outline',
-
-        type: 'line',
-
-        source: 'parcels',
-
-        minzoom: 15,
-
-        paint: {
-          'line-color': '#64748b',
-
-          'line-width': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-
-            15,
-            0.25,
-
-            16,
-            0.45,
-
-            17,
-            0.70,
-
-            18,
-            0.90,
-          ] as any,
-
-          'line-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-
-            15,
-            0.15,
-
-            16,
-            0.25,
-
-            17,
-            0.40,
-
-            18,
-            0.55,
-          ] as any,
-        },
-      });
-
-      // ========================================================
-      // SELECTED PARCEL
-      //
-      // This remains visible even when normal parcels are subtle.
-      // ========================================================
-
-      m.addLayer({
-        id: 'parcels-selected-fill',
-
-        type: 'fill',
-
-        source: 'parcels',
-
-        paint: {
-          'fill-color': '#2563eb',
-
-          'fill-opacity': 0.50,
-        },
-
-        filter: [
-          '==',
-          ['get', 'parcel_id'],
-          '',
-        ] as any,
-      });
-
-      // ========================================================
-      // SELECTED PARCEL BORDER
-      // ========================================================
-
-      m.addLayer({
-        id: 'parcels-highlight',
-
-        type: 'line',
-
-        source: 'parcels',
-
-        paint: {
-          'line-color': '#1d4ed8',
-
-          'line-width': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-
-            10,
-            2,
-
-            14,
-            3,
-
-            16,
-            4,
-
-            18,
-            5,
-          ] as any,
-
-          'line-opacity': 1,
-        },
-
-        filter: [
-          '==',
-          ['get', 'parcel_id'],
-          '',
-        ] as any,
-      });
-
-      // ========================================================
-      // CURSOR
-      // ========================================================
-
-      m.on(
-        'mouseenter',
-        'parcels-fill',
-        () => {
-          m.getCanvas().style.cursor = 'pointer';
-        }
-      );
-
-      m.on(
-        'mouseleave',
-        'parcels-fill',
-        () => {
-          m.getCanvas().style.cursor = '';
-        }
-      );
-
-      // ========================================================
-      // CLICK
-      // ========================================================
-
-      m.on(
-        'click',
-        'parcels-fill',
-        handleParcelClick
-      );
-
-      // ========================================================
-      // INITIAL FIT ONLY
-      //
-      // Do NOT refit every time filters change.
-      // ========================================================
-
-      if (
-        !hasFittedInitialData.current &&
-        geojsonData.features.length > 0
-      ) {
-        const bounds =
-          new maplibregl.LngLatBounds();
-
-        geojsonData.features.forEach(
-          (feature) => {
-            const geometry =
-              feature.geometry;
-
-            if (
-              geometry.type !== 'Polygon'
-            ) {
-              return;
-            }
-
-            geometry.coordinates.forEach(
-              (ring) => {
-                ring.forEach(
-                  (coordinate) => {
-                    if (
-                      coordinate.length >= 2
-                    ) {
-                      bounds.extend([
-                        coordinate[0],
-                        coordinate[1],
-                      ]);
-                    }
-                  }
-                );
-              }
-            );
-          }
-        );
-
-        if (!bounds.isEmpty()) {
-          m.fitBounds(
-            bounds,
+          m.addSource(
+            'parcels',
             {
-              padding: 70,
+              type: 'geojson',
 
-              /*
-               * Keep initial view broad.
-               */
-              maxZoom: 13,
+              data:
+                geojsonData as any,
 
-              duration: 500,
+              tolerance:
+                0.375,
+
+              buffer:
+                0,
+
             }
           );
 
-          hasFittedInitialData.current = true;
+
+          // ====================================================
+          // NORMAL 2D PARCELS
+          // ====================================================
+
+          m.addLayer({
+
+            id:
+              'parcels-fill',
+
+            type:
+              'fill',
+
+            source:
+              'parcels',
+
+            minzoom:
+              11,
+
+            paint: {
+
+              'fill-color': [
+
+                'match',
+
+                [
+                  'get',
+                  'suitability_status',
+                ],
+
+                'HIGHLY_SUITABLE',
+                '#16a34a',
+
+                'highly_suitable',
+                '#16a34a',
+
+                'SUITABLE',
+                '#22c55e',
+
+                'suitable',
+                '#22c55e',
+
+                'MODERATE',
+                '#eab308',
+
+                'moderate',
+                '#eab308',
+
+                'UNSUITABLE',
+                '#f97316',
+
+                'unsuitable',
+                '#f97316',
+
+                'RESTRICTED',
+                '#dc2626',
+
+                'restricted',
+                '#dc2626',
+
+                '#64748b',
+
+              ] as any,
+
+              'fill-opacity': [
+
+                'interpolate',
+
+                ['linear'],
+
+                ['zoom'],
+
+                11,
+                0.03,
+
+                13,
+                0.05,
+
+                14,
+                0.08,
+
+                15,
+                0.14,
+
+                16,
+                0.22,
+
+                17,
+                0.30,
+
+                18,
+                0.38,
+
+              ] as any,
+
+            },
+
+          });
+
+
+          // ====================================================
+          // OUTLINE
+          // ====================================================
+
+          m.addLayer({
+
+            id:
+              'parcels-outline',
+
+            type:
+              'line',
+
+            source:
+              'parcels',
+
+            minzoom:
+              14,
+
+            paint: {
+
+              'line-color':
+                '#475569',
+
+              'line-width': [
+
+                'interpolate',
+
+                ['linear'],
+
+                ['zoom'],
+
+                14,
+                0.25,
+
+                15,
+                0.40,
+
+                16,
+                0.60,
+
+                17,
+                0.80,
+
+                18,
+                1.0,
+
+              ] as any,
+
+              'line-opacity': [
+
+                'interpolate',
+
+                ['linear'],
+
+                ['zoom'],
+
+                14,
+                0.15,
+
+                15,
+                0.25,
+
+                16,
+                0.40,
+
+                17,
+                0.55,
+
+                18,
+                0.70,
+
+              ] as any,
+
+            },
+
+          });
+
+
+          // ====================================================
+          // 3D BUILDING / URBAN MASSING
+          //
+          // IMPORTANT:
+          // Use simple MapLibre expressions for stability.
+          // ====================================================
+
+          m.addLayer({
+
+            id:
+              'buildings-3d',
+
+            type:
+              'fill-extrusion',
+
+            source:
+              'parcels',
+
+            minzoom:
+              12,
+
+            layout: {
+
+              visibility:
+                'none',
+
+            },
+
+            paint: {
+
+              // Height from dataset.
+              // 2.5x visual exaggeration.
+
+              'fill-extrusion-height': [
+
+                '*',
+
+                [
+
+                  'coalesce',
+
+                  [
+                    'get',
+                    'average_building_height_m',
+                  ],
+
+                  8,
+
+                ],
+
+                2.5,
+
+              ] as any,
+
+
+              'fill-extrusion-base':
+                0,
+
+
+              'fill-extrusion-color': [
+
+                'match',
+
+                [
+                  'get',
+                  'suitability_status',
+                ],
+
+                'HIGHLY_SUITABLE',
+                '#16a34a',
+
+                'highly_suitable',
+                '#16a34a',
+
+                'SUITABLE',
+                '#22c55e',
+
+                'suitable',
+                '#22c55e',
+
+                'MODERATE',
+                '#eab308',
+
+                'moderate',
+                '#eab308',
+
+                'UNSUITABLE',
+                '#f97316',
+
+                'unsuitable',
+                '#f97316',
+
+                'RESTRICTED',
+                '#dc2626',
+
+                'restricted',
+                '#dc2626',
+
+                '#64748b',
+
+              ] as any,
+
+
+              'fill-extrusion-opacity':
+                0.82,
+
+              'fill-extrusion-vertical-gradient':
+                true,
+
+            },
+
+          });
+
+
+          // ====================================================
+          // SELECTED PARCEL
+          // ====================================================
+
+          m.addLayer({
+
+            id:
+              'parcels-selected-fill',
+
+            type:
+              'fill',
+
+            source:
+              'parcels',
+
+            paint: {
+
+              'fill-color':
+                '#2563eb',
+
+              'fill-opacity':
+                0.50,
+
+            },
+
+            filter: [
+
+              '==',
+
+              [
+                'get',
+                'parcel_id',
+              ],
+
+              '',
+
+            ] as any,
+
+          });
+
+
+          // ====================================================
+          // SELECTED BORDER
+          // ====================================================
+
+          m.addLayer({
+
+            id:
+              'parcels-highlight',
+
+            type:
+              'line',
+
+            source:
+              'parcels',
+
+            paint: {
+
+              'line-color':
+                '#1d4ed8',
+
+              'line-width':
+                4,
+
+              'line-opacity':
+                1,
+
+            },
+
+            filter: [
+
+              '==',
+
+              [
+                'get',
+                'parcel_id',
+              ],
+
+              '',
+
+            ] as any,
+
+          });
+
         }
-      }
-    };
+        else {
 
-    // ============================================================
-    // WAIT FOR MAP STYLE
-    // ============================================================
+          // ====================================================
+          // SOURCE ALREADY EXISTS
+          // ====================================================
 
-    if (m.isStyleLoaded()) {
-      addOrUpdateData();
-    } else {
-      m.once('load', addOrUpdateData);
+          const source =
+            m.getSource(
+              'parcels'
+            ) as maplibregl.GeoJSONSource;
+
+          source.setData(
+            geojsonData as any
+          );
+
+        }
+
+
+        // ======================================================
+        // CLICK HANDLER
+        // ======================================================
+
+        if (
+          !clickAttached.current
+        ) {
+
+          m.on(
+            'click',
+            'parcels-fill',
+            handleParcelClick
+          );
+
+          clickAttached.current =
+            true;
+
+
+          m.on(
+            'mouseenter',
+            'parcels-fill',
+            () => {
+
+              m.getCanvas()
+                .style.cursor =
+                'pointer';
+
+            }
+          );
+
+
+          m.on(
+            'mouseleave',
+            'parcels-fill',
+            () => {
+
+              m.getCanvas()
+                .style.cursor =
+                '';
+
+            }
+          );
+
+        }
+
+
+        // ======================================================
+        // INITIAL FIT
+        // ======================================================
+
+        if (
+          !hasFitted.current &&
+          geojsonData.features.length > 0
+        ) {
+
+          const bounds =
+            new maplibregl.LngLatBounds();
+
+
+          geojsonData.features.forEach(
+            (feature) => {
+
+              if (
+                feature.geometry.type !==
+                'Polygon'
+              ) {
+                return;
+              }
+
+
+              feature.geometry.coordinates.forEach(
+                (ring) => {
+
+                  ring.forEach(
+                    (coordinate) => {
+
+                      if (
+                        coordinate.length >= 2
+                      ) {
+
+                        bounds.extend([
+
+                          coordinate[0],
+
+                          coordinate[1],
+
+                        ]);
+
+                      }
+
+                    }
+                  );
+
+                }
+              );
+
+            }
+          );
+
+
+          if (
+            !bounds.isEmpty()
+          ) {
+
+            m.fitBounds(
+              bounds,
+              {
+
+                padding:
+                  70,
+
+                maxZoom:
+                  13,
+
+                duration:
+                  500,
+
+              }
+            );
+
+
+            hasFitted.current =
+              true;
+
+          }
+
+        }
+
+
+        // ======================================================
+        // APPLY CURRENT MODE AFTER LAYERS EXIST
+        // ======================================================
+
+        applyMode(
+          m,
+          is3D
+        );
+
+      };
+
+
+    // ==========================================================
+    // WAIT FOR STYLE
+    // ==========================================================
+
+    if (
+      m.isStyleLoaded()
+    ) {
+
+      setupLayers();
+
     }
+    else {
+
+      m.once(
+        'load',
+        setupLayers
+      );
+
+    }
+
 
   }, [
     geojsonData,
     handleParcelClick,
   ]);
 
+
   // ============================================================
-  // UPDATE SELECTED PARCEL
+  // 2D / 3D MODE
   // ============================================================
 
   useEffect(() => {
-    const m = map.current;
+
+    const m =
+      map.current;
 
     if (!m) {
       return;
     }
 
-    const updateHighlight = () => {
-      const filter = [
-        '==',
-        ['get', 'parcel_id'],
-        highlightedParcelId || '',
-      ] as any;
 
-      if (
-        m.getLayer(
-          'parcels-selected-fill'
-        )
-      ) {
-        m.setFilter(
-          'parcels-selected-fill',
-          filter
+    const run =
+      () => {
+
+        applyMode(
+          m,
+          is3D
         );
-      }
 
-      if (
-        m.getLayer(
-          'parcels-highlight'
-        )
-      ) {
-        m.setFilter(
-          'parcels-highlight',
-          filter
-        );
-      }
-    };
+      };
 
-    if (m.isStyleLoaded()) {
-      updateHighlight();
-    } else {
+
+    if (
+      m.isStyleLoaded()
+    ) {
+
+      run();
+
+    }
+    else {
+
       m.once(
         'load',
-        updateHighlight
+        run
       );
+
+    }
+
+  }, [
+    is3D,
+  ]);
+
+
+  // ============================================================
+  // SELECTED PARCEL
+  // ============================================================
+
+  useEffect(() => {
+
+    const m =
+      map.current;
+
+    if (!m) {
+      return;
+    }
+
+
+    const update =
+      () => {
+
+        const filter = [
+
+          '==',
+
+          [
+            'get',
+            'parcel_id',
+          ],
+
+          highlightedParcelId ||
+            '',
+
+        ] as any;
+
+
+        if (
+          m.getLayer(
+            'parcels-selected-fill'
+          )
+        ) {
+
+          m.setFilter(
+            'parcels-selected-fill',
+            filter
+          );
+
+        }
+
+
+        if (
+          m.getLayer(
+            'parcels-highlight'
+          )
+        ) {
+
+          m.setFilter(
+            'parcels-highlight',
+            filter
+          );
+
+        }
+
+      };
+
+
+    if (
+      m.isStyleLoaded()
+    ) {
+
+      update();
+
+    }
+    else {
+
+      m.once(
+        'load',
+        update
+      );
+
     }
 
   }, [
     highlightedParcelId,
   ]);
 
+
   // ============================================================
-  // EXTERNAL FIT BOUNDS
+  // EXTERNAL FIT
   // ============================================================
 
   useEffect(() => {
-    const m = map.current;
 
-    if (!m || !fitBounds) {
+    const m =
+      map.current;
+
+    if (
+      !m ||
+      !fitBounds
+    ) {
       return;
     }
+
 
     m.fitBounds(
       fitBounds,
       {
-        padding: 40,
-        duration: 500,
+
+        padding:
+          40,
+
+        duration:
+          500,
+
       }
     );
 
@@ -569,22 +1005,309 @@ function MapContainerInner({
     fitBounds,
   ]);
 
+
   // ============================================================
-  // RENDER
+  // UI
   // ============================================================
 
   return (
+
     <div
-      ref={mapContainer}
-      className={`w-full h-full ${className}`}
-      role="application"
-      aria-label="Interactive GIS map"
-    />
+      className={`
+        relative
+        w-full
+        h-full
+        ${className}
+      `}
+    >
+
+      {/* MAP */}
+
+      <div
+        ref={mapContainer}
+        className="
+          absolute
+          inset-0
+          w-full
+          h-full
+        "
+        role="application"
+        aria-label="Interactive GIS map"
+      />
+
+
+      {/* 2D / 3D SWITCH */}
+
+      <div
+        className="
+          absolute
+          top-4
+          left-4
+          z-20
+          flex
+          items-center
+          rounded-xl
+          border
+          border-gray-200
+          bg-white
+          p-1
+          shadow-lg
+        "
+      >
+
+        <button
+          type="button"
+          onClick={() =>
+            setIs3D(false)
+          }
+          className={`
+            rounded-lg
+            px-4
+            py-2
+            text-sm
+            font-semibold
+            transition
+            ${
+              !is3D
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }
+          `}
+        >
+          2D
+        </button>
+
+
+        <button
+          type="button"
+          onClick={() =>
+            setIs3D(true)
+          }
+          className={`
+            rounded-lg
+            px-4
+            py-2
+            text-sm
+            font-semibold
+            transition
+            ${
+              is3D
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }
+          `}
+        >
+          3D
+        </button>
+
+
+        <span
+          className="
+            hidden
+            sm:block
+            px-3
+            text-xs
+            font-medium
+            text-gray-500
+          "
+        >
+          {is3D
+            ? 'Urban 3D Intelligence'
+            : 'Parcel Intelligence'}
+        </span>
+
+      </div>
+
+
+      {/* 3D INFORMATION */}
+
+      {is3D && (
+
+        <div
+          className="
+            absolute
+            bottom-4
+            left-4
+            z-20
+            rounded-lg
+            border
+            border-blue-200
+            bg-white/95
+            px-3
+            py-2
+            text-xs
+            text-gray-600
+            shadow-md
+          "
+        >
+
+          <div
+            className="
+              font-semibold
+              text-gray-900
+            "
+          >
+            Urban 3D Massing
+          </div>
+
+          <div>
+            Building height data
+          </div>
+
+        </div>
+
+      )}
+
+    </div>
+
   );
 }
 
-const MapContainer = memo(
-  MapContainerInner
-);
+
+// ============================================================
+// MODE FUNCTION
+// ============================================================
+
+function applyMode(
+  m: maplibregl.Map,
+  mode3D: boolean
+) {
+
+  const fill =
+    m.getLayer(
+      'parcels-fill'
+    );
+
+  const outline =
+    m.getLayer(
+      'parcels-outline'
+    );
+
+  const buildings =
+    m.getLayer(
+      'buildings-3d'
+    );
+
+
+  // ==========================================================
+  // 3D
+  // ==========================================================
+
+  if (mode3D) {
+
+    if (fill) {
+
+      m.setLayoutProperty(
+        'parcels-fill',
+        'visibility',
+        'visible'
+      );
+
+    }
+
+
+    if (outline) {
+
+      m.setLayoutProperty(
+        'parcels-outline',
+        'visibility',
+        'visible'
+      );
+
+    }
+
+
+    if (buildings) {
+
+      m.setLayoutProperty(
+        'buildings-3d',
+        'visibility',
+        'visible'
+      );
+
+    }
+
+
+    m.easeTo({
+
+      pitch:
+        58,
+
+      bearing:
+        -15,
+
+      duration:
+        900,
+
+    });
+
+  }
+
+
+  // ==========================================================
+  // 2D
+  // ==========================================================
+
+  else {
+
+    if (buildings) {
+
+      m.setLayoutProperty(
+        'buildings-3d',
+        'visibility',
+        'none'
+      );
+
+    }
+
+
+    if (fill) {
+
+      m.setLayoutProperty(
+        'parcels-fill',
+        'visibility',
+        'visible'
+      );
+
+    }
+
+
+    if (outline) {
+
+      m.setLayoutProperty(
+        'parcels-outline',
+        'visibility',
+        'visible'
+      );
+
+    }
+
+
+    m.easeTo({
+
+      pitch:
+        0,
+
+      bearing:
+        0,
+
+      duration:
+        700,
+
+    });
+
+  }
+
+}
+
+
+// ============================================================
+// EXPORT
+// ============================================================
+
+const MapContainer =
+  memo(
+    MapContainerInner
+  );
 
 export default MapContainer;
